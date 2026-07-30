@@ -61,6 +61,20 @@ const TECH = [
   { icon: Bot, iconBg: 'bg-neon-magenta/20', iconClass: 'text-neon-magenta', border: 'hover:neon-border-magenta', name: 'Supabase + AI', label: 'Cloud & Recs' },
 ];
 
+const MILO_ACRONYM = [
+  { text: 'Movie', glow: 'neon-text-cyan' },
+  { text: 'Intelligence', glow: 'neon-text-magenta' },
+  { text: 'Learning', glow: 'neon-text-purple' },
+  { text: 'Overseer', glow: 'neon-text-cyan' },
+];
+
+const MILO_MEANING = [
+  { letter: 'M', word: 'Movie', icon: Film, iconBg: 'bg-neon-cyan/20', iconClass: 'text-neon-cyan', glow: 'neon-text-cyan', border: 'hover:neon-border-cyan', desc: 'Track every film and series you watch, all in one place.' },
+  { letter: 'I', word: 'Intelligence', icon: Sparkles, iconBg: 'bg-neon-magenta/20', iconClass: 'text-neon-magenta', glow: 'neon-text-magenta', border: 'hover:neon-border-magenta', desc: 'AI-powered recommendations, tuned to your taste.' },
+  { letter: 'L', word: 'Learning', icon: BarChart3, iconBg: 'bg-neon-purple/20', iconClass: 'text-neon-purple', glow: 'neon-text-purple', border: 'hover:neon-border-purple', desc: 'The more you log, the better it understands what you love.' },
+  { letter: 'O', word: 'Overseer', icon: Database, iconBg: 'bg-neon-cyan/20', iconClass: 'text-neon-cyan', glow: 'neon-text-cyan', border: 'hover:neon-border-cyan', desc: 'Your whole watch history, organized and at a glance.' },
+];
+
 const revealProps = {
   initial: { opacity: 0, y: 30 },
   whileInView: { opacity: 1, y: 0 },
@@ -137,9 +151,20 @@ export default function LandingPage() {
                 <img src="/landing/milo_icon.jpeg" alt="MILO Logo" className="w-20 h-20 object-contain rounded-lg" />
               </div>
             </div>
-            <h1 className="text-5xl sm:text-7xl font-extrabold mb-6">
+            <h1 className="text-5xl sm:text-7xl font-extrabold mb-4">
               <span className="neon-text-cyan">MI</span><span className="neon-text-magenta">LO</span>
             </h1>
+            <div className="flex flex-wrap justify-center items-baseline gap-x-3 gap-y-1 text-lg sm:text-xl font-semibold mb-4">
+              {MILO_ACRONYM.map((word, i) => (
+                <span key={word.text} className="flex items-baseline">
+                  {i > 0 && <span className="text-white/25 mr-3">&middot;</span>}
+                  <span className="text-white/70">
+                    <span className={`text-2xl sm:text-3xl font-extrabold ${word.glow}`}>{word.text[0]}</span>
+                    {word.text.slice(1)}
+                  </span>
+                </span>
+              ))}
+            </div>
             <p className="text-xl sm:text-2xl text-white/80 mb-4">
               AI-Powered Movie &amp; TV Tracking Dashboard
             </p>
@@ -185,6 +210,39 @@ export default function LandingPage() {
         <a href="#features" className="absolute bottom-8 left-1/2 -translate-x-1/2 text-white/40 hover:text-neon-cyan transition-colors">
           <ChevronDown size={32} className="animate-bounce" />
         </a>
+      </section>
+
+      {/* What MILO stands for */}
+      <section className="py-20 px-4 sm:px-6 lg:px-8">
+        <div className="max-w-7xl mx-auto">
+          <div className="text-center mb-16">
+            <h2 className="text-4xl sm:text-5xl font-bold mb-4"><span className="neon-text-magenta">The mind behind MILO</span></h2>
+            <p className="text-xl text-white/50">Every letter earns its place &mdash; here's what MILO stands for</p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
+            {MILO_MEANING.map((m, i) => {
+              const Icon = m.icon;
+              return (
+                <motion.div
+                  key={m.letter}
+                  {...revealProps}
+                  transition={{ ...revealProps.transition, delay: 0.08 * i }}
+                  className={`glass rounded-xl p-6 text-center ${m.border}`}
+                >
+                  <div className={`w-14 h-14 mx-auto mb-4 rounded-lg ${m.iconBg} flex items-center justify-center`}>
+                    <Icon size={28} className={m.iconClass} />
+                  </div>
+                  <div className={`text-6xl font-extrabold leading-none mb-2 ${m.glow}`}>{m.letter}</div>
+                  <h3 className="text-lg font-semibold text-white mb-2">
+                    <span className={m.glow}>{m.word[0]}</span>{m.word.slice(1)}
+                  </h3>
+                  <p className="text-sm text-white/50">{m.desc}</p>
+                </motion.div>
+              );
+            })}
+          </div>
+        </div>
       </section>
 
       {/* App Preview */}
