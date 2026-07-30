@@ -34,7 +34,7 @@ function Section({ icon: Icon, title, children }) {
         <Icon size={16} className="text-neon-cyan" />
         {title}
       </h3>
-      <div className="text-white/60 text-sm leading-relaxed space-y-2">{children}</div>
+      <div className="text-white/80 text-sm leading-relaxed space-y-2">{children}</div>
     </section>
   );
 }
@@ -47,14 +47,14 @@ export default function AIProvidersHelpModal({ isOpen, onClose }) {
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4"
+      className="fixed inset-0 bg-black/85 backdrop-blur-sm flex items-center justify-center z-50 p-4"
       onClick={onClose}
     >
       <motion.div
         initial={{ scale: 0.9, opacity: 0 }}
         animate={{ scale: 1, opacity: 1 }}
         exit={{ scale: 0.9, opacity: 0 }}
-        className="glass rounded-2xl p-6 w-full max-w-2xl neon-border-cyan max-h-[90vh] overflow-y-auto"
+        className="rounded-2xl p-6 w-full max-w-2xl neon-border-cyan max-h-[90vh] overflow-y-auto bg-gradient-to-b from-[#13131e] to-[#0b0b12] backdrop-blur-xl border border-white/10"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex justify-between items-center mb-6">
@@ -138,7 +138,7 @@ export default function AIProvidersHelpModal({ isOpen, onClose }) {
               <span className="text-white/80">Load models</span> to fetch the list of models your key
               can access and pick one from the dropdown. You can also type a model name manually.
             </p>
-            <p className="text-white/40 text-xs">
+            <p className="text-white/60 text-xs">
               Tip: every provider exposes different model names. If a model returns an error, try
               loading models again to see exactly what's available to your key.
             </p>

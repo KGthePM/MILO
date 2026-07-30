@@ -1,10 +1,18 @@
 import { motion, AnimatePresence } from 'framer-motion';
-import { Sparkles, RefreshCw, Filter, Loader2, AlertCircle, Play, Settings as SettingsIcon } from 'lucide-react';
+import { Sparkles, RefreshCw, Filter, Loader2, AlertCircle, Play, Settings as SettingsIcon, Brain } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { api as movieApi } from '../../api/movieApi';
 import { tvApi } from '../../api/tvApi';
+import { api as tasteApi } from '../../api/tasteApi';
 import { IS_CLOUD } from '../../utils/mode';
 import { loadAISettings, getActiveKey } from '../../utils/aiSettings';
+
+function formatWhen(ts) {
+  if (!ts) return '';
+  const d = new Date(ts);
+  if (Number.isNaN(d.getTime())) return '';
+  return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+}
 
 function pickBestModel(list) {
   if (!list || list.length === 0) return '';
@@ -36,6 +44,12 @@ export default function EnhancedRecommendations({ contentType = 'movie' }) {
   const [source, setSource] = useState('simple');
   const [message, setMessage] = useState('');
   const [aiErrorMessage, setAiErrorMessage] = useState(null);
+
+  // Taste Analysis — a silent tool: compile once, then it powers recs + MILO chat.
+  const [tasteProfile, setTasteProfile] = useState(null);
+  const [tasteMeta, setTasteMeta] = useState(null); // { generatedAt, stale }
+  const [tasteLoading, setTasteLoading] = useState(false);
+  const [tasteError, setTasteError] = useState(null);
 
   const contentLabel = contentType === 'tv' ? 'TV' : 'Movies';
   const accent = contentType === 'tv' ? 'magenta' : 'cyan';
@@ -102,6 +116,38 @@ export default function EnhancedRecommendations({ contentType = 'movie' }) {
     }
   };
 
+  // Load any saved taste profile once the panel is opened.
+  useEffect(() => {
+    if (!hasStarted) return;
+    let cancelled = false;
+    tasteApi
+      .getProfile()
+      .then((res) => {
+        if (cancelled) return;
+        setTasteProfile(res.profile || null);
+        setTasteMeta(res.profile ? { generatedAt: res.generatedAt, stale: !!res.stale } : null);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [hasStarted]);
+
+  const handleAnalyze = async () => {
+    setTasteLoading(true);
+    setTasteError(null);
+    try {
+      const effectiveModel = IS_CLOUD ? cloudSettings?.model : selectedModel;
+      const res = await tasteApi.generateProfile(effectiveModel || null);
+      setTasteProfile(res.profile || null);
+      setTasteMeta(res.profile ? { generatedAt: res.generatedAt, stale: false } : null);
+    } catch (e) {
+      setTasteError(e.message || 'Taste analysis failed');
+    } finally {
+      setTasteLoading(false);
+    }
+  };
+
   const handleStart = () => setHasStarted(true);
 
   const handleGenerate = () => {
@@ -118,6 +164,7 @@ export default function EnhancedRecommendations({ contentType = 'movie' }) {
 
   const cloudReady = IS_CLOUD && cloudSettings && cloudSettings.model && (cloudSettings.provider === 'ollama' || !!getActiveKey(cloudSettings));
   const canGenerate = IS_CLOUD ? (cloudReady && !loading && !refreshing) : (!!selectedModel && !loading && !refreshing);
+  const canAnalyze = (IS_CLOUD ? cloudReady : !!selectedModel) && !tasteLoading;
 
   if (!hasStarted) {
     return (
@@ -217,6 +264,41 @@ export default function EnhancedRecommendations({ contentType = 'movie' }) {
         </button>
       </div>
 
+      <div className="mb-4 px-3 py-2.5 rounded-lg bg-black/20 border border-white/10">
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2 min-w-0">
+            <Brain size={16} className={`text-${accent} shrink-0`} />
+            <div className="min-w-0">
+              <p className="text-white/80 text-sm font-medium">Taste Analysis</p>
+              {tasteLoading ? (
+                <p className="text-white/40 text-xs">Compiling your taste profile…</p>
+              ) : tasteProfile ? (
+                <p className="text-white/40 text-xs truncate">
+                  Profile ready{tasteMeta?.generatedAt ? ` · ${formatWhen(tasteMeta.generatedAt)}` : ''}
+                  {tasteMeta?.stale ? ' · library changed — consider re-analyzing' : ''}
+                </p>
+              ) : (
+                <p className="text-white/40 text-xs">Compile a read of your taste to sharpen recs & MILO chat.</p>
+              )}
+            </div>
+          </div>
+          <button
+            onClick={handleAnalyze}
+            disabled={!canAnalyze}
+            className={`flex items-center gap-2 px-3 py-1.5 rounded-lg bg-${accent}/15 border border-${accent}/30 hover:bg-${accent}/25 hover:border-${accent}/60 disabled:opacity-40 disabled:cursor-not-allowed transition-all text-white text-xs font-semibold shrink-0`}
+          >
+            {tasteLoading ? <Loader2 size={13} className="animate-spin" /> : <Brain size={13} />}
+            {tasteProfile ? 'Re-analyze' : 'Analyze my taste'}
+          </button>
+        </div>
+        {tasteProfile?.persona && !tasteLoading && (
+          <p className="text-white/50 text-xs mt-2 leading-relaxed">{tasteProfile.persona}</p>
+        )}
+        {tasteError && (
+          <p className="text-red-400 text-xs mt-2 font-mono break-all">{tasteError}</p>
+        )}
+      </div>
+
       {IS_CLOUD && !cloudReady && (
         <div className="flex items-start gap-2 mb-4 px-3 py-2 bg-yellow-500/10 rounded-lg border border-yellow-500/20">
           <AlertCircle size={14} className="text-yellow-300 shrink-0 mt-0.5" />
@@ -262,6 +344,9 @@ export default function EnhancedRecommendations({ contentType = 'movie' }) {
             <div className="flex items-center gap-2 mb-4 px-3 py-2 bg-green-500/10 rounded-lg border border-green-500/20">
               <Sparkles size={14} className="text-green-400" />
               <span className="text-green-400 text-sm">AI-Powered</span>
+              {tasteProfile && (
+                <span className="text-green-300/60 text-xs ml-1">· Powered by your Taste Profile</span>
+              )}
             </div>
           )}
 

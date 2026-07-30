@@ -1,5 +1,9 @@
 import { getSupabase } from '../utils/supabase';
-import { generateRecommendations as aiGenerate, listModels as aiListModels } from '../ai';
+import {
+  generateRecommendations as aiGenerate,
+  listModels as aiListModels,
+  generateTasteProfile as aiGenerateTasteProfile,
+} from '../ai';
 import { normalizeTitle } from '../ai/prompt';
 import { loadAISettings } from '../utils/aiSettings';
 import { parseLetterboxdCSV, processLetterboxdRows } from './letterboxdClient';
@@ -29,6 +33,34 @@ async function requireUserId() {
   const { data, error } = await sb.auth.getUser();
   if (error || !data?.user) throw new Error('Not signed in.');
   return data.user.id;
+}
+
+const TASTE_TABLE = 'taste_profiles';
+
+// Signature over the whole watched library (movies + TV). Mirrors
+// backend/taste-analyzer.js profileSignature so staleness is computed the same way.
+function profileSignature(movies = [], tvSeries = []) {
+  const all = [...movies, ...tvSeries];
+  if (all.length === 0) return '0:';
+  const maxId = all.reduce((m, r) => Math.max(m, Number(r.id) || 0), 0);
+  return `${all.length}:${maxId}`;
+}
+
+// Load the saved taste profile object (or null) — used to enrich recs + assistant.
+async function loadSavedTasteProfile() {
+  try {
+    const sb = getSupabase();
+    const user_id = await requireUserId();
+    const { data } = await sb
+      .from(TASTE_TABLE)
+      .select('profile_json')
+      .eq('user_id', user_id)
+      .eq('scope', 'all')
+      .maybeSingle();
+    return data?.profile_json || null;
+  } catch {
+    return null;
+  }
 }
 
 function applyFilters(query, params) {
@@ -171,6 +203,8 @@ export const movieApi = {
     const rowsByType = {};
     for (const ct of contentTypes) rowsByType[ct] = await listRows({ type: ct, status: 'watched' });
 
+    const tasteProfile = await loadSavedTasteProfile();
+
     const allRecs = [];
     let lastError = null;
     for (const recType of recTypes) {
@@ -182,6 +216,7 @@ export const movieApi = {
             type: recType,
             contentType: ct,
             extraExclusions: recentlyRecommended.get(recentKey) || [],
+            tasteProfile,
             settings,
           });
           const watchedSet = new Set(rowsByType[ct].map((r) => normalizeTitle(r.title)));
@@ -286,9 +321,72 @@ export const assistantApi = {
     const { chatAssistant } = await import('../ai');
     const settings = loadAISettings();
     if (model) settings.model = model;
-    return chatAssistant({ message, movies, tvSeries, analytics, history, settings });
+    const tasteProfile = await loadSavedTasteProfile();
+    return chatAssistant({ message, movies, tvSeries, analytics, history, tasteProfile, settings });
   },
   async getOllamaModels() {
     return movieApi.getOllamaModels();
+  },
+};
+
+export const tasteApi = {
+  async getProfile() {
+    const sb = getSupabase();
+    const user_id = await requireUserId();
+    const { data, error } = await sb
+      .from(TASTE_TABLE)
+      .select('*')
+      .eq('user_id', user_id)
+      .eq('scope', 'all')
+      .maybeSingle();
+    if (error) throw new Error(error.message);
+    if (!data) return { profile: null };
+
+    const [movies, tvSeries] = await Promise.all([
+      listRows({ type: 'movie', status: 'watched' }),
+      listRows({ type: 'tv', status: 'watched' }),
+    ]);
+    const currentSignature = profileSignature(movies, tvSeries);
+    return {
+      profile: data.profile_json || null,
+      model: data.model,
+      generatedAt: data.generated_at,
+      signature: data.library_signature,
+      stale: data.library_signature !== currentSignature,
+    };
+  },
+
+  async generateProfile(model = null) {
+    const sb = getSupabase();
+    const user_id = await requireUserId();
+    const settings = loadAISettings();
+    if (model) settings.model = model;
+
+    const [movies, tvSeries] = await Promise.all([
+      listRows({ type: 'movie', status: 'watched' }),
+      listRows({ type: 'tv', status: 'watched' }),
+    ]);
+    if (movies.length === 0 && tvSeries.length === 0) {
+      throw new Error('Add some watched titles before analyzing your taste.');
+    }
+
+    const profile = await aiGenerateTasteProfile({ movies, tvSeries, settings });
+    const signature = profileSignature(movies, tvSeries);
+
+    const { error } = await sb.from(TASTE_TABLE).upsert(
+      {
+        user_id,
+        scope: 'all',
+        profile_json: profile,
+        library_signature: signature,
+        model: settings.model,
+        generated_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: 'user_id,scope' }
+    );
+    if (error) throw new Error(error.message);
+
+    return { profile, model: settings.model, signature, generatedAt: new Date().toISOString(), stale: false };
   },
 };

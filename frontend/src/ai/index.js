@@ -1,4 +1,10 @@
-import { buildRecommendationPrompt, buildAssistantPrompt } from './prompt';
+import {
+  buildRecommendationPrompt,
+  buildAssistantPrompt,
+  buildLibraryDigest,
+  buildTasteAnalysisPrompt,
+  parseTasteProfileJSON,
+} from './prompt';
 import * as openrouter from './providers/openrouter';
 import * as anthropic from './providers/anthropic';
 import * as ollama from './providers/ollama';
@@ -52,11 +58,13 @@ export async function generateRecommendations({
   type,
   contentType,
   extraExclusions = [],
+  tasteProfile = null,
   settings = loadAISettings(),
   signal,
 } = {}) {
   const { systemPrompt, userPrompt } = buildRecommendationPrompt(userMovies, type, contentType, {
     extraExclusions,
+    tasteProfile,
   });
   const provider = getProvider(settings.provider);
   return provider.generateRecommendations({
@@ -67,16 +75,49 @@ export async function generateRecommendations({
   });
 }
 
+// Compile a distilled taste profile from the full library via the provider's
+// generic chat path (no per-provider capability needed).
+export async function generateTasteProfile({
+  movies = [],
+  tvSeries = [],
+  settings = loadAISettings(),
+  signal,
+} = {}) {
+  const parts = [];
+  if (movies.length) parts.push(buildLibraryDigest(movies, 'movies'));
+  if (tvSeries.length) parts.push(buildLibraryDigest(tvSeries, 'TV series'));
+  const digest = parts.join('\n\n') || 'My library is currently empty.';
+  const { systemPrompt, userPrompt } = buildTasteAnalysisPrompt(digest, 'movies & TV');
+  const provider = getProvider(settings.provider);
+  if (typeof provider.chat !== 'function') {
+    throw new Error(`${settings.provider} does not support taste analysis.`);
+  }
+  const text = await provider.chat({
+    systemPrompt,
+    userPrompt,
+    ...providerCallOpts(settings),
+    maxTokens: 1500,
+    signal,
+  });
+  const profile = parseTasteProfileJSON(text);
+  if (!profile) {
+    const snippet = String(text || '').trim().slice(0, 200);
+    throw new Error(`${settings.provider} did not return a valid taste profile: ${snippet || '(empty response)'}`);
+  }
+  return profile;
+}
+
 export async function chatAssistant({
   message,
   movies = [],
   tvSeries = [],
   analytics = null,
   history = [],
+  tasteProfile = null,
   settings = loadAISettings(),
   signal,
 } = {}) {
-  const { systemPrompt, userPrompt } = buildAssistantPrompt(message, movies, tvSeries, analytics, history);
+  const { systemPrompt, userPrompt } = buildAssistantPrompt(message, movies, tvSeries, analytics, history, tasteProfile);
   const provider = getProvider(settings.provider);
   const response = await provider.chatAssistant({
     systemPrompt,

@@ -19,7 +19,7 @@ export async function listModels({ apiKey, signal } = {}) {
   return (json.data || []).map((m) => m.id);
 }
 
-async function chat({ apiKey, model, systemPrompt, userPrompt, signal, maxTokens = 1200 }) {
+export async function chat({ apiKey, model, systemPrompt, userPrompt, signal, maxTokens = 1200 }) {
   if (!apiKey) throw new Error('OpenRouter API key required.');
   if (!model) throw new Error('Pick a model from the dropdown.');
   const res = await fetch(`${BASE}/chat/completions`, {

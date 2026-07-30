@@ -1,9 +1,10 @@
 require('dotenv').config();
 
 const http = require('http');
+const { formatTasteProfileForPrompt } = require('./ollama-recommender');
 
 // Build context string from user data
-function buildContext(movies = [], tvSeries = [], analytics = null) {
+function buildContext(movies = [], tvSeries = [], analytics = null, tasteProfile = null) {
   movies = movies.filter(m => (m.status || 'watched') === 'watched');
   tvSeries = tvSeries.filter(t => (t.status || 'watched') === 'watched');
 
@@ -41,6 +42,9 @@ function buildContext(movies = [], tvSeries = [], analytics = null) {
     context += `\nTotal content watched: ${analytics.totalWatched || 0}\n`;
     context += `Average rating: ${analytics.averageRating?.toFixed(1) || 'N/A'}/10\n`;
   }
+
+  const profileText = formatTasteProfileForPrompt(tasteProfile);
+  if (profileText) context += `\n${profileText}\n`;
 
   return context;
 }
@@ -160,14 +164,14 @@ async function callOllama(prompt, systemPrompt, model) {
 }
 
 // Generate response from MILO
-async function generateResponse(message, movies, tvSeries, analytics, model, history = []) {
+async function generateResponse(message, movies, tvSeries, analytics, model, history = [], tasteProfile = null) {
   const resolvedModel = model || process.env.OLLAMA_MODEL;
   if (!resolvedModel) {
     throw new Error('No model specified. Pick one from the dropdown.');
   }
 
   try {
-    const context = buildContext(movies, tvSeries, analytics);
+    const context = buildContext(movies, tvSeries, analytics, tasteProfile);
     const { systemPrompt, userPrompt } = buildPrompt(message, context, history);
     const response = await callOllama(userPrompt, systemPrompt, resolvedModel);
 

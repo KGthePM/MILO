@@ -30,6 +30,10 @@ async function generate({ ollamaUrl, model, systemPrompt, userPrompt, signal, nu
   return json.response || '';
 }
 
+export async function chat({ systemPrompt, userPrompt, ollamaUrl, model, signal, maxTokens = 1200 }) {
+  return generate({ ollamaUrl, model, systemPrompt, userPrompt, signal, numPredict: maxTokens });
+}
+
 export async function generateRecommendations({ systemPrompt, userPrompt, ollamaUrl, model, signal }) {
   const text = await generate({ ollamaUrl, model, systemPrompt, userPrompt, signal, numPredict: 4000 });
   const parsed = parseRecommendationsJSON(text);

@@ -483,6 +483,13 @@ router.get('/recommendations', async (req, res) => {
       });
     }
 
+    // Enrich with the saved taste profile when one exists (falls back silently).
+    const tasteRow = await readTasteProfile('all');
+    let tasteProfile = null;
+    if (tasteRow) {
+      try { tasteProfile = JSON.parse(tasteRow.profile_json); } catch { tasteProfile = null; }
+    }
+
     let allRecommendations = [];
     let aiError = null;
 
@@ -494,7 +501,7 @@ router.get('/recommendations', async (req, res) => {
             recType,
             contentType,
             model,
-            { refresh: shouldRefresh }
+            { refresh: shouldRefresh, tasteProfile }
           );
 
           if (result.recommendations && result.recommendations.length > 0) {
@@ -539,6 +546,86 @@ router.get('/recommendations', async (req, res) => {
   }
 });
 
+// --- Taste Profile (persisted, user-initiated) -----------------------------
+
+const tasteAnalyzer = require('../taste-analyzer');
+
+function fetchWatched(type) {
+  return new Promise((resolve, reject) => {
+    db.all("SELECT * FROM movies WHERE type = ? AND status = 'watched'", [type], (err, rows) => {
+      if (err) reject(err); else resolve(rows || []);
+    });
+  });
+}
+
+function readTasteProfile(scope = 'all') {
+  return new Promise((resolve, reject) => {
+    db.get('SELECT * FROM taste_profiles WHERE scope = ?', [scope], (err, row) => {
+      if (err) reject(err); else resolve(row || null);
+    });
+  });
+}
+
+function rowToProfileResponse(row, currentSignature) {
+  if (!row) return { profile: null };
+  let profile = null;
+  try { profile = JSON.parse(row.profile_json); } catch { profile = null; }
+  return {
+    profile,
+    model: row.model,
+    generatedAt: row.generated_at,
+    signature: row.library_signature,
+    stale: currentSignature != null && row.library_signature !== currentSignature,
+  };
+}
+
+router.get('/taste-profile', async (req, res) => {
+  try {
+    const [movies, tvSeries, row] = await Promise.all([
+      fetchWatched('movie'),
+      fetchWatched('tv'),
+      readTasteProfile('all'),
+    ]);
+    const currentSignature = tasteAnalyzer.profileSignature(movies, tvSeries);
+    res.json(rowToProfileResponse(row, currentSignature));
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+router.post('/taste-profile', async (req, res) => {
+  const { model } = req.body || {};
+  try {
+    const [movies, tvSeries] = await Promise.all([fetchWatched('movie'), fetchWatched('tv')]);
+    if (movies.length === 0 && tvSeries.length === 0) {
+      return res.status(400).json({ error: 'Add some watched titles before analyzing your taste.' });
+    }
+
+    const { profile, model: usedModel, signature } =
+      await tasteAnalyzer.generateTasteProfile(movies, tvSeries, model);
+
+    await new Promise((resolve, reject) => {
+      db.run(
+        `INSERT INTO taste_profiles (scope, model, profile_json, library_signature, generated_at)
+         VALUES ('all', ?, ?, ?, CURRENT_TIMESTAMP)
+         ON CONFLICT(scope) DO UPDATE SET
+           model = excluded.model,
+           profile_json = excluded.profile_json,
+           library_signature = excluded.library_signature,
+           generated_at = CURRENT_TIMESTAMP`,
+        [usedModel, JSON.stringify(profile), signature],
+        (err) => (err ? reject(err) : resolve())
+      );
+    });
+
+    const row = await readTasteProfile('all');
+    res.json(rowToProfileResponse(row, signature));
+  } catch (error) {
+    console.error('Taste analysis failed:', error.message);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 router.post('/assistant/chat', async (req, res) => {
   const { message, model, movies, tvSeries, analytics, history } = req.body;
 
@@ -547,7 +634,12 @@ router.post('/assistant/chat', async (req, res) => {
   }
 
   try {
-    const result = await assistant.generateResponse(message, movies || [], tvSeries || [], analytics || null, model, history || []);
+    const tasteRow = await readTasteProfile('all');
+    let tasteProfile = null;
+    if (tasteRow) {
+      try { tasteProfile = JSON.parse(tasteRow.profile_json); } catch { tasteProfile = null; }
+    }
+    const result = await assistant.generateResponse(message, movies || [], tvSeries || [], analytics || null, model, history || [], tasteProfile);
     res.json(result);
   } catch (error) {
     console.error('MILO assistant error:', error.message);

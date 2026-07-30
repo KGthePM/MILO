@@ -49,6 +49,10 @@ async function messages({ apiKey, model, systemPrompt, userPrompt, signal, maxTo
   return json.content?.map((c) => c.text || '').join('\n') || '';
 }
 
+export async function chat({ systemPrompt, userPrompt, apiKey, model, signal, maxTokens = 1200 }) {
+  return messages({ apiKey, model, systemPrompt, userPrompt, signal, maxTokens });
+}
+
 export async function generateRecommendations({ systemPrompt, userPrompt, apiKey, model, signal }) {
   const text = await messages({ apiKey, model, systemPrompt, userPrompt, signal, maxTokens: 4000 });
   const parsed = parseRecommendationsJSON(text);

@@ -37,6 +37,28 @@ function initializeDatabase() {
     } else {
       console.log('Movies table ready');
       migrateDatabase();
+      ensureTasteProfilesTable();
+    }
+  });
+}
+
+// Persisted Taste Profile artifact (one row per scope; 'all' = unified movies+TV).
+// Idempotent — safe to run on every startup.
+function ensureTasteProfilesTable() {
+  db.run(`
+    CREATE TABLE IF NOT EXISTS taste_profiles (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      scope TEXT NOT NULL DEFAULT 'all' UNIQUE,
+      model TEXT,
+      profile_json TEXT NOT NULL,
+      library_signature TEXT,
+      generated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )
+  `, (err) => {
+    if (err) {
+      console.error('Error creating taste_profiles table:', err.message);
+    } else {
+      console.log('Taste profiles table ready');
     }
   });
 }

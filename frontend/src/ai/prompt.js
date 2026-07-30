@@ -124,7 +124,21 @@ Return ONLY valid JSON in this format:
     };
   }
 
-  const digest = buildLibraryDigest(userMovies, contentLabel);
+  // When a saved taste profile is present, lead with its distilled read plus a
+  // condensed "loved" grounding instead of double-sending the full digest.
+  const profileText = formatTasteProfileForPrompt(options.tasteProfile);
+  let signal;
+  if (profileText) {
+    const topLoved = [...userMovies]
+      .filter((m) => typeof m.rating === 'number' && !Number.isNaN(m.rating))
+      .sort((a, b) => b.rating - a.rating)
+      .slice(0, 8)
+      .map((m) => `- ${formatDigestLine(m)}`)
+      .join('\n');
+    signal = `${profileText}${topLoved ? `\n\nA few of my highest-rated ${contentLabel} for grounding:\n${topLoved}` : ''}`;
+  } else {
+    signal = buildLibraryDigest(userMovies, contentLabel);
+  }
 
   const watchedSorted = [...userMovies]
     .sort((a, b) => {
@@ -143,7 +157,7 @@ Return ONLY valid JSON in this format:
 
   let userPrompt = '';
   if (type === 'similar') {
-    userPrompt = `${digest}
+    userPrompt = `${signal}
 
 Analyze the patterns in my preferences (genre, director, themes, style, era) and especially what I rate highly versus poorly. Recommend 5 ${contentLabel} that match what I love and avoid what I dislike, explaining why each fits my taste.
 
@@ -153,7 +167,7 @@ Consider:
 - Comparable themes and storytelling approaches
 - Similar production era or aesthetic`;
   } else if (type === 'hidden_gems') {
-    userPrompt = `${digest}
+    userPrompt = `${signal}
 
 I want to discover lesser-known ${contentLabel} (hidden gems) that match my taste. Recommend 5 ${contentLabel} that are:
 - Not mainstream blockbusters or huge hits
@@ -162,7 +176,7 @@ I want to discover lesser-known ${contentLabel} (hidden gems) that match my tast
 
 For each, explain why it's a hidden gem that fits my taste perfectly.`;
   } else {
-    userPrompt = `${digest}\n\nRecommend 5 ${contentLabel} I'd enjoy, matching what I love and avoiding what I dislike.`;
+    userPrompt = `${signal}\n\nRecommend 5 ${contentLabel} I'd enjoy, matching what I love and avoiding what I dislike.`;
   }
 
   userPrompt += exclusionBlock;
@@ -170,7 +184,102 @@ For each, explain why it's a hidden gem that fits my taste perfectly.`;
   return { systemPrompt, userPrompt };
 }
 
-export function buildAssistantPrompt(userMessage, movies = [], tvSeries = [], analytics = null, history = []) {
+// ---------------------------------------------------------------------------
+// Taste Analysis — a persisted, distilled profile compiled from the digest.
+// buildTasteAnalysisPrompt / parseTasteProfileJSON / formatTasteProfileForPrompt
+// are mirrored verbatim in backend/ollama-recommender.js. Keep the two in sync.
+// ---------------------------------------------------------------------------
+
+export function buildTasteAnalysisPrompt(digest, contentLabel = 'movies & TV') {
+  const systemPrompt = `You are a film and television taste analyst. Study the user's library digest and compile a concise, structured profile of their taste.
+
+Base every field strictly on the evidence in the digest — especially what they rate highly versus poorly. Do not invent facts. Be specific and vivid, not generic.
+
+Return ONLY valid JSON in this exact shape:
+{
+  "persona": "short vivid label + 1-2 sentence description",
+  "summary": "2-3 sentence plain-English read of their taste",
+  "favoriteGenres": [{ "genre": "string", "note": "why it fits them" }],
+  "favoriteDirectors": ["string"],
+  "favoriteEras": ["string"],
+  "themes": ["string"],
+  "styles": ["string"],
+  "dislikes": ["string"],
+  "patterns": ["string"],
+  "hiddenGemAffinity": "string",
+  "movieVsTV": "string"
+}`;
+
+  const userPrompt = `${digest}
+
+Analyze my ${contentLabel} taste and return the JSON profile described. Focus on:
+- What my highest-rated titles and highest-average-rated genres reveal about what I love
+- What my lowest-rated titles reveal about what to steer away from (dislikes)
+- Recurring themes, styles, directors, and eras
+- Patterns (e.g. rating auteur work above box-office hits) and any hidden-gem affinity
+- How my movie taste compares to my TV taste`;
+
+  return { systemPrompt, userPrompt };
+}
+
+export function parseTasteProfileJSON(text) {
+  if (!text) return null;
+
+  const cleaned = String(text)
+    .replace(/<think>[\s\S]*?<\/think>/gi, '')
+    .replace(/```(?:json)?/gi, '')
+    .trim();
+
+  const isProfile = (o) => o && typeof o === 'object' && (o.persona || o.summary);
+
+  try {
+    const direct = JSON.parse(cleaned);
+    if (isProfile(direct)) return direct;
+  } catch { /* fall through */ }
+
+  for (const candidate of extractJsonObjects(cleaned)) {
+    if (!candidate.includes('"persona"') && !candidate.includes('"summary"')) continue;
+    try {
+      const parsed = JSON.parse(candidate);
+      if (isProfile(parsed)) return parsed;
+    } catch { /* try next */ }
+  }
+
+  return null;
+}
+
+// Compact text block injected into the recommendation + assistant prompts when a
+// saved profile exists. Mirrored in backend/ollama-recommender.js.
+export function formatTasteProfileForPrompt(profile) {
+  if (!profile || typeof profile !== 'object') return '';
+  const lines = [];
+  if (profile.persona) lines.push(`Persona: ${profile.persona}`);
+  if (profile.summary) lines.push(`Summary: ${profile.summary}`);
+  const genres = Array.isArray(profile.favoriteGenres)
+    ? profile.favoriteGenres
+        .map((g) => (typeof g === 'string' ? g : g && g.genre ? (g.note ? `${g.genre} (${g.note})` : g.genre) : ''))
+        .filter(Boolean)
+    : [];
+  if (genres.length) lines.push(`Favorite genres: ${genres.join('; ')}`);
+  if (Array.isArray(profile.favoriteDirectors) && profile.favoriteDirectors.length)
+    lines.push(`Favorite directors: ${profile.favoriteDirectors.join(', ')}`);
+  if (Array.isArray(profile.favoriteEras) && profile.favoriteEras.length)
+    lines.push(`Favorite eras: ${profile.favoriteEras.join(', ')}`);
+  if (Array.isArray(profile.themes) && profile.themes.length)
+    lines.push(`Themes they love: ${profile.themes.join(', ')}`);
+  if (Array.isArray(profile.styles) && profile.styles.length)
+    lines.push(`Styles they love: ${profile.styles.join(', ')}`);
+  if (Array.isArray(profile.dislikes) && profile.dislikes.length)
+    lines.push(`Dislikes (steer away): ${profile.dislikes.join(', ')}`);
+  if (Array.isArray(profile.patterns) && profile.patterns.length)
+    lines.push(`Patterns: ${profile.patterns.join('; ')}`);
+  if (profile.hiddenGemAffinity) lines.push(`Hidden-gem affinity: ${profile.hiddenGemAffinity}`);
+  if (profile.movieVsTV) lines.push(`Movie vs TV: ${profile.movieVsTV}`);
+  if (!lines.length) return '';
+  return `Here is my saved taste profile (a distilled read of my library — treat it as the primary guide):\n${lines.join('\n')}`;
+}
+
+export function buildAssistantPrompt(userMessage, movies = [], tvSeries = [], analytics = null, history = [], tasteProfile = null) {
   let context = 'User viewing history:\n\n';
 
   if (movies.length > 0) {
@@ -207,6 +316,9 @@ export function buildAssistantPrompt(userMessage, movies = [], tvSeries = [], an
     context += `\nTotal content watched: ${analytics.totalWatched || 0}\n`;
     context += `Average rating: ${analytics.averageRating?.toFixed?.(1) || 'N/A'}/10\n`;
   }
+
+  const profileText = formatTasteProfileForPrompt(tasteProfile);
+  if (profileText) context += `\n${profileText}\n`;
 
   const systemPrompt = `You are MILO (Movie Intelligence & Learning Overseer), a sophisticated AI assistant for a personal movie and TV tracking application.
 
