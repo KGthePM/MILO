@@ -50,9 +50,13 @@ async function messages({ apiKey, model, systemPrompt, userPrompt, signal, maxTo
 }
 
 export async function generateRecommendations({ systemPrompt, userPrompt, apiKey, model, signal }) {
-  const text = await messages({ apiKey, model, systemPrompt, userPrompt, signal });
+  const text = await messages({ apiKey, model, systemPrompt, userPrompt, signal, maxTokens: 4000 });
   const parsed = parseRecommendationsJSON(text);
-  return parsed?.recommendations || [];
+  if (!parsed || !Array.isArray(parsed.recommendations) || parsed.recommendations.length === 0) {
+    const snippet = String(text || '').trim().slice(0, 200);
+    throw new Error(`Anthropic did not return valid recommendations JSON: ${snippet || '(empty response)'}`);
+  }
+  return parsed.recommendations;
 }
 
 export async function chatAssistant({ systemPrompt, userPrompt, apiKey, model, signal }) {

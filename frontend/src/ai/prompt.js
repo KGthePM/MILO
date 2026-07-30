@@ -156,13 +156,63 @@ ${context}`;
   return { systemPrompt, userPrompt };
 }
 
+// Extract every balanced `{...}` object from a string, respecting string
+// literals and escapes so stray braces inside prose or strings don't confuse it.
+function extractJsonObjects(text) {
+  const objects = [];
+  let depth = 0;
+  let start = -1;
+  let inString = false;
+  let escaped = false;
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+    if (inString) {
+      if (escaped) escaped = false;
+      else if (ch === '\\') escaped = true;
+      else if (ch === '"') inString = false;
+      continue;
+    }
+    if (ch === '"') { inString = true; continue; }
+    if (ch === '{') {
+      if (depth === 0) start = i;
+      depth++;
+    } else if (ch === '}') {
+      if (depth > 0) {
+        depth--;
+        if (depth === 0 && start !== -1) {
+          objects.push(text.slice(start, i + 1));
+          start = -1;
+        }
+      }
+    }
+  }
+  return objects;
+}
+
 export function parseRecommendationsJSON(text) {
   if (!text) return null;
+
+  // Reasoning models (GLM, DeepSeek, etc.) often emit <think>…</think> blocks
+  // and/or wrap JSON in markdown code fences. Strip both before parsing.
+  let cleaned = String(text)
+    .replace(/<think>[\s\S]*?<\/think>/gi, '')
+    .replace(/```(?:json)?/gi, '')
+    .trim();
+
+  // Fast path: the whole thing is valid JSON.
   try {
-    const match = text.match(/\{[\s\S]*"recommendations"[\s\S]*\}/);
-    if (match) return JSON.parse(match[0]);
-    return JSON.parse(text);
-  } catch {
-    return null;
+    const direct = JSON.parse(cleaned);
+    if (direct && Array.isArray(direct.recommendations)) return direct;
+  } catch { /* fall through */ }
+
+  // Otherwise scan for the first balanced object that has a recommendations array.
+  for (const candidate of extractJsonObjects(cleaned)) {
+    if (!candidate.includes('"recommendations"')) continue;
+    try {
+      const parsed = JSON.parse(candidate);
+      if (parsed && Array.isArray(parsed.recommendations)) return parsed;
+    } catch { /* try next */ }
   }
+
+  return null;
 }

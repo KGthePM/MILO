@@ -31,9 +31,13 @@ async function generate({ ollamaUrl, model, systemPrompt, userPrompt, signal, nu
 }
 
 export async function generateRecommendations({ systemPrompt, userPrompt, ollamaUrl, model, signal }) {
-  const text = await generate({ ollamaUrl, model, systemPrompt, userPrompt, signal });
+  const text = await generate({ ollamaUrl, model, systemPrompt, userPrompt, signal, numPredict: 4000 });
   const parsed = parseRecommendationsJSON(text);
-  return parsed?.recommendations || [];
+  if (!parsed || !Array.isArray(parsed.recommendations) || parsed.recommendations.length === 0) {
+    const snippet = String(text || '').trim().slice(0, 200);
+    throw new Error(`Ollama did not return valid recommendations JSON: ${snippet || '(empty response)'}`);
+  }
+  return parsed.recommendations;
 }
 
 export async function chatAssistant({ systemPrompt, userPrompt, ollamaUrl, model, signal }) {

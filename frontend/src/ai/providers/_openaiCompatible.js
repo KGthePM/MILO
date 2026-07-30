@@ -90,9 +90,14 @@ export function createOpenAICompatibleProvider({
   }
 
   async function generateRecommendations(opts) {
-    const text = await chat(opts);
+    const label = (opts && opts.name) || name;
+    const text = await chat({ ...opts, maxTokens: 4000 });
     const parsed = parseRecommendationsJSON(text);
-    return parsed?.recommendations || [];
+    if (!parsed || !Array.isArray(parsed.recommendations) || parsed.recommendations.length === 0) {
+      const snippet = String(text || '').trim().slice(0, 200);
+      throw new Error(`${label} did not return valid recommendations JSON: ${snippet || '(empty response)'}`);
+    }
+    return parsed.recommendations;
   }
 
   async function chatAssistant(opts) {
