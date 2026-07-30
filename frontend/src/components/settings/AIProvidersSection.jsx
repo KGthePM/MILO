@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
-import { Save, Eye, EyeOff, RefreshCw, AlertCircle, Check } from 'lucide-react';
+import { Save, Eye, EyeOff, RefreshCw, AlertCircle, Check, HelpCircle } from 'lucide-react';
 import { loadAISettings, saveAISettings, PROVIDER_GROUPS } from '../../utils/aiSettings';
 import { listModels } from '../../ai';
+import AIProvidersHelpModal from './AIProvidersHelpModal';
 
 const PROVIDER_LABELS = {
   openrouter: 'OpenRouter (100+ models, one key)',
@@ -60,6 +61,7 @@ export default function AIProvidersSection() {
   const [modelsError, setModelsError] = useState(null);
   const [modelsLoading, setModelsLoading] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [isHelpOpen, setIsHelpOpen] = useState(false);
 
   const updateProvider = (provider) => setSettings((s) => ({ ...s, provider, model: '' }));
   const updateKey = (val) => setSettings((s) => ({ ...s, keys: { ...s.keys, [s.provider]: val } }));
@@ -94,9 +96,19 @@ export default function AIProvidersSection() {
 
   return (
     <div className="space-y-4 max-w-2xl">
-      <p className="text-white/60 text-sm">
-        Bring your own key. Keys are stored only in your browser's localStorage and sent directly to the provider.
-      </p>
+      <div className="flex items-start justify-between gap-3">
+        <p className="text-white/60 text-sm">
+          Bring your own key. Keys are stored only in your browser's localStorage and sent directly to the provider.
+        </p>
+        <button
+          onClick={() => setIsHelpOpen(true)}
+          className="shrink-0 p-1.5 rounded-lg text-white/50 hover:text-neon-cyan hover:bg-white/5 transition-colors"
+          title="How AI providers work"
+          aria-label="How AI providers work"
+        >
+          <HelpCircle size={18} />
+        </button>
+      </div>
 
       <div>
         <label className="block text-white/70 text-sm mb-1">Provider</label>
@@ -214,6 +226,8 @@ export default function AIProvidersSection() {
           </span>
         )}
       </div>
+
+      <AIProvidersHelpModal isOpen={isHelpOpen} onClose={() => setIsHelpOpen(false)} />
     </div>
   );
 }

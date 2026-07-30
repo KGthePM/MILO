@@ -1,7 +1,57 @@
-# Taste Analysis — Future Update Plan
+# Taste Analysis — Update Plan
 
-> **Status:** Planned (not started). This document captures the agreed design for a
-> future enhancement to MILO's AI features. It is a reference for when work begins.
+> **Status:** **Phase A shipped (2026-07-30).** The richer library digest, anti-repetition,
+> and cleanup landed as a leaner first pass that fixes "impersonal + repetitive" without any
+> new infrastructure. The full persisted **Taste Profile** described below is now **Phase B
+> (not started)** — revisit once Phase A proves the richer signal helps.
+
+---
+
+## ✅ Phase A — Shipped (2026-07-30)
+
+Delivered ~80% of the personalization win plus the repetition fix by feeding a richer digest
+into the *existing* recommendation prompt. **No new tables, endpoints, or extra inference
+calls.** Prompt text is mirrored across local and cloud (kept in sync by hand).
+
+**Richer library digest** (`buildLibraryDigest`, mirrored in
+`backend/ollama-recommender.js` + `frontend/src/ai/prompt.js`) replaces the bare top-5 with:
+- **Loved** (top-rated) and **Disliked** (lowest-rated) as *non-overlapping* partitions —
+  title, rating, genre, director, **release_year**, and truncated **notes** (both sent for
+  the first time).
+- **Genre distribution** with count + **average rating** (surfaces loved vs. merely-watched
+  genres — now actually consumes the previously-dead `genres`/`directors` sets).
+- Frequency-ranked **directors** and **release-decade eras**.
+- Length-capped to bound tokens.
+
+**Anti-repetition:**
+- Local (`ollama-recommender.js`): bounded per-`contentType:type:model` set of
+  recently-shown titles appended as extra exclusions on refresh, plus a random Ollama
+  `seed` and raised temperature (0.9) so an unchanged library still diversifies. `refresh`
+  threaded from `backend/routes/index.js`.
+- Cloud (`frontend/src/api/cloud.js` + `frontend/src/ai/index.js`): module-level
+  recently-shown set fed via a new `extraExclusions` param on `buildRecommendationPrompt`.
+
+**Cleanup:**
+- Removed dead `genres`/`directors` code; started sending `release_year` (schema already
+  had it — `backend/database.js:25`).
+- Confirmed both local (`routes/index.js:467`) and cloud (`cloud.js:161`) already pass
+  `status='watched'` only, so the watchlist informs exclusions but not the taste signal.
+
+**Not done in Phase A:** no live end-to-end run against Ollama/Supabase (no test harness in
+the project). Syntax-checked, bundled, and smoke-tested the prompt output in isolation.
+
+---
+
+## Phase B — Persisted Taste Profile (not started)
+
+> The original design below. Everything under "Concept" through "Implementation Plan"
+> remains the plan of record for Phase B, **except** the digest work in step 1 and the
+> cleanup in step 8, which shipped in Phase A above. Phase B adds the *persisted, structured*
+> profile: a separate inference step, saved artifact, dedicated UI, and assistant
+> unification.
+
+> **Original status note:** Planned (not started). This document captures the agreed design
+> for a future enhancement to MILO's AI features. It is a reference for when work begins.
 
 ## Motivation
 
@@ -49,7 +99,7 @@ on a real understanding of the user rather than 5 raw titles.
 
 ## Implementation Plan
 
-### 1. A richer "library digest" (the real fix)
+### 1. A richer "library digest" (the real fix) — ✅ SHIPPED IN PHASE A
 Build a digest from *all* watched items instead of just top-5. Contains:
 - **Loved** (top ~15–20 rated): title, rating, genre, director, **release_year**, **notes** (truncated)
 - **Disliked** (bottom ~15 rated) — the biggest new signal, same fields
@@ -121,7 +171,7 @@ Edit `frontend/src/components/recommendations/EnhancedRecommendations.jsx`:
 - Recs show a subtle "Powered by your Taste Profile" note when a profile is in use.
 - Reuse the existing model/provider picker.
 
-### 8. Included cleanup (low-hanging fruit)
+### 8. Included cleanup (low-hanging fruit) — ✅ SHIPPED IN PHASE A
 - Remove the dead `genres`/`directors` code at `backend/ollama-recommender.js:108-109`
   (now actually used by the digest).
 - Start sending `release_year` (the prompt already asks for "similar production era").
