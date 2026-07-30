@@ -35,7 +35,7 @@ export async function chat({ systemPrompt, userPrompt, ollamaUrl, model, signal,
 }
 
 export async function generateRecommendations({ systemPrompt, userPrompt, ollamaUrl, model, signal }) {
-  const text = await generate({ ollamaUrl, model, systemPrompt, userPrompt, signal, numPredict: 4000 });
+  const text = await generate({ ollamaUrl, model, systemPrompt, userPrompt, signal, numPredict: 8000 });
   const parsed = parseRecommendationsJSON(text);
   if (!parsed || !Array.isArray(parsed.recommendations) || parsed.recommendations.length === 0) {
     const snippet = String(text || '').trim().slice(0, 200);

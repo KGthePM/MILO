@@ -465,5 +465,57 @@ export function parseRecommendationsJSON(text) {
     } catch { /* try next */ }
   }
 
+  // Salvage: reasoning models (GLM, etc.) sometimes exhaust the token budget on
+  // reasoning and get truncated mid-JSON, so the top-level object never closes
+  // and nothing above parses. Recover whatever complete recommendation objects
+  // did make it into the array before the cutoff.
+  const salvaged = salvageRecommendations(cleaned);
+  if (salvaged.length) return { recommendations: salvaged };
+
   return null;
+}
+
+// Walk the `"recommendations"` array and return each complete, parseable item
+// object (must have a non-empty title). Stops at the truncation point. Unlike
+// extractJsonObjects, this captures objects nested inside the array even when
+// the enclosing top-level object is never closed.
+function salvageRecommendations(text) {
+  const key = text.indexOf('"recommendations"');
+  if (key === -1) return [];
+  const open = text.indexOf('[', key);
+  if (open === -1) return [];
+
+  const items = [];
+  let depth = 0;
+  let start = -1;
+  let inString = false;
+  let escaped = false;
+  for (let i = open + 1; i < text.length; i++) {
+    const ch = text[i];
+    if (inString) {
+      if (escaped) escaped = false;
+      else if (ch === '\\') escaped = true;
+      else if (ch === '"') inString = false;
+      continue;
+    }
+    if (ch === '"') { inString = true; continue; }
+    if (ch === '{') {
+      if (depth === 0) start = i;
+      depth++;
+    } else if (ch === '}') {
+      if (depth > 0) {
+        depth--;
+        if (depth === 0 && start !== -1) {
+          try {
+            const item = JSON.parse(text.slice(start, i + 1));
+            if (item && typeof item === 'object' && item.title) items.push(item);
+          } catch { /* skip malformed item */ }
+          start = -1;
+        }
+      }
+    } else if (ch === ']' && depth === 0) {
+      break;
+    }
+  }
+  return items;
 }

@@ -42,7 +42,7 @@ export async function chat({ apiKey, model, systemPrompt, userPrompt, signal, ma
 }
 
 export async function generateRecommendations({ systemPrompt, userPrompt, apiKey, model, signal }) {
-  const text = await chat({ apiKey, model, systemPrompt, userPrompt, signal, maxTokens: 4000 });
+  const text = await chat({ apiKey, model, systemPrompt, userPrompt, signal, maxTokens: 8000 });
   const parsed = parseRecommendationsJSON(text);
   if (!parsed || !Array.isArray(parsed.recommendations) || parsed.recommendations.length === 0) {
     const snippet = String(text || '').trim().slice(0, 200);

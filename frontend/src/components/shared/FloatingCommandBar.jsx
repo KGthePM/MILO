@@ -4,6 +4,7 @@ import { motion } from 'framer-motion';
 import { Film, Tv, Plus, RefreshCw, Settings as SettingsIcon, LogIn, LogOut, Users } from 'lucide-react';
 import { IS_CLOUD } from '../../utils/mode';
 import { getSupabase } from '../../utils/supabase';
+import ConfirmDialog from './ConfirmDialog';
 
 function Divider() {
   return <div className="w-px h-8 bg-white/10 mx-0.5 sm:mx-1 shrink-0" />;

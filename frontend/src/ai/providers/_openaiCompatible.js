@@ -91,7 +91,7 @@ export function createOpenAICompatibleProvider({
 
   async function generateRecommendations(opts) {
     const label = (opts && opts.name) || name;
-    const text = await chat({ ...opts, maxTokens: 4000 });
+    const text = await chat({ ...opts, maxTokens: 8000 });
     const parsed = parseRecommendationsJSON(text);
     if (!parsed || !Array.isArray(parsed.recommendations) || parsed.recommendations.length === 0) {
       const snippet = String(text || '').trim().slice(0, 200);
