@@ -4,6 +4,94 @@
 > and cleanup landed as a leaner first pass that fixes "impersonal + repetitive" without any
 > new infrastructure. The full persisted **Taste Profile** described below is now **Phase B
 > (not started)** — revisit once Phase A proves the richer signal helps.
+>
+> Phase B was subsequently built (persisted profile + UI + assistant unification). See the
+> **Post-Ship Fix Log** immediately below for a live issue found while testing it.
+
+---
+
+## ✅ Phase C — Recommendation Feedback Loop (shipped 2026-07-30, cloud-first)
+
+MILO now learns whether its recs actually land. Each AI rec card gets three reactions:
+**Interested** (records feedback + adds the title to the watchlist as `status='to_watch'`),
+**Not for me** (durable exclusion + "learn from these" signal), **Seen it** (durable
+exclusion for titles watched but never logged — covers the gap left by the 300-title cap).
+
+- **Persistence:** new `rec_feedback` table — `supabase/migrations/0007_rec_feedback.sql`
+  (**applied to live project 2026-07-30** via MCP `apply_migration`; RLS + owner policies
+  verified) and a mirrored SQLite `ensureRecFeedbackTable()` in `backend/database.js`.
+  Unique per `(user_id,) normalized_title, content_type`; re-reacting upserts.
+- **Prompts:** `formatRecFeedbackForPrompt` added to the hand-mirrored pair
+  (`frontend/src/ai/prompt.js` + `backend/ollama-recommender.js`), appended after the
+  exclusion block. Feedback titles dedupe against the watched list; feedback wording wins
+  over the recently-shown list. Parsed model output is also hard-filtered against feedback
+  titles. Watchlisted/rejected recs also feed the taste-analysis digest (≤15 each).
+- **Cloud wiring:** `feedbackApi` (list/record/remove) in `frontend/src/api/cloud.js`,
+  feedback loaded + grouped (caps: 40 not_for_me / 25 interested / 40 seen_it) in
+  `getRecommendations` and `tasteApi.generateProfile`; switcher pair
+  `frontend/src/api/feedbackApi.js` / `.local.js`.
+- **UI:** three ghost buttons per rec card in `EnhancedRecommendations.jsx` (cloud mode,
+  AI recs only). Toggle to undo; undoing "Interested" removes only a watchlist row created
+  in the same session. Cards stay on screen after feedback — the signal applies on the
+  next Generate/Refresh.
+- **Mechanical fixes bundled:** staleness signatures (`profileSignature` ×2,
+  `librarySignature`) now hash `id|rating|status` (shared `hashLibrary`, mirrored
+  byte-identical), so rating/status edits mark the profile stale and bust the local rec
+  cache. One-time side effect: existing saved profiles flag stale once. Digest "Disliked"
+  block now only includes titles rated ≤ 6.
+
+**Local mode: deferred (user decision).** The prompt layer, signature fix, SQLite table,
+and `generateRecommendations({ feedback, feedbackSignature })` plumbing are already in the
+backend; still to do: `GET/POST/DELETE /api/rec-feedback` routes in
+`backend/routes/index.js`, feeding feedback into `GET /recommendations` +
+`POST /taste-profile`, the digest append in `backend/taste-analyzer.js`, and replacing the
+`feedbackApi.local.js` stub. The UI hides feedback buttons in local mode until then.
+
+---
+
+## 🐛 Post-Ship Fix Log
+
+### 2026-07-30 — "Could not find the table 'public.taste_profiles' in the schema cache"
+
+**Symptom:** Clicking **Analyze my taste** in cloud mode errors with
+`Could not find the table 'public.taste_profiles' in the schema cache`.
+
+**Investigation (done):** This is **not a code bug**. The code and schema are consistent:
+- `frontend/src/api/cloud.js` (`tasteApi`, `loadSavedTasteProfile`) reads/writes a
+  `taste_profiles` table with columns `user_id, scope, profile_json, library_signature,
+  model, generated_at, updated_at` and upserts on `onConflict: 'user_id,scope'`.
+- `supabase/migrations/0006_taste_profiles.sql` defines exactly that table + indexes + the
+  four owner RLS policies. Column names and the `unique (user_id, scope)` constraint match.
+
+**Root cause:** Migration `0006_taste_profiles.sql` was **never applied to the live Supabase
+project**. Migrations 0001–0005 were applied when cloud mode was set up, but 0006 (added for
+this taste feature) still only exists in the repo. Supabase has no `taste_profiles` table, so
+PostgREST returns the schema-cache error. Unlike the local SQLite path
+(`backend/database.js` auto-migrates on startup), Supabase migrations are **not**
+auto-applied.
+
+**Fix (✅ APPLIED 2026-07-30 — method: Supabase MCP `apply_migration`):**
+1. Authenticated the Supabase MCP server; confirmed the live project is `MILO-movies`
+   (`gewqxrzfpxjijqnlfilp`), matching `VITE_SUPABASE_URL`.
+2. Applied `supabase/migrations/0006_taste_profiles.sql` verbatim via `apply_migration`
+   (records it in the migration history — the history table was previously empty because
+   0001–0005 were created ad-hoc via the SQL Editor). The SQL is idempotent, so re-running
+   is safe.
+3. PostgREST reloaded its schema cache automatically after the DDL.
+
+**Verification (✅ done, all passed):**
+- `select count(*) from taste_profiles;` → `0`, no error.
+- `list_tables` shows `public.taste_profiles` with `rls_enabled: true`; existing tables
+  (`movies` 170 rows, `profiles`, `friend_requests`) untouched.
+- Four owner policies present: `owner read:SELECT, owner insert:INSERT,
+  owner update:UPDATE, owner delete:DELETE`.
+- **Remaining (user to confirm in-app):** sign in, have ≥1 watched title, click
+  **Analyze my taste** → profile generates and persists with no schema-cache error;
+  reload → saved profile loads back (`tasteApi.getProfile`).
+
+**Follow-up / process note:** New `supabase/migrations/*.sql` files must be applied to the
+live project going forward (via MCP, SQL Editor, or `supabase db push`) — they are not
+auto-applied like the local SQLite migrations.
 
 ---
 

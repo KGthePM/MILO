@@ -59,12 +59,14 @@ export async function generateRecommendations({
   contentType,
   extraExclusions = [],
   tasteProfile = null,
+  feedback = null,
   settings = loadAISettings(),
   signal,
 } = {}) {
   const { systemPrompt, userPrompt } = buildRecommendationPrompt(userMovies, type, contentType, {
     extraExclusions,
     tasteProfile,
+    feedback,
   });
   const provider = getProvider(settings.provider);
   return provider.generateRecommendations({
@@ -80,12 +82,23 @@ export async function generateRecommendations({
 export async function generateTasteProfile({
   movies = [],
   tvSeries = [],
+  feedback = null,
   settings = loadAISettings(),
   signal,
 } = {}) {
   const parts = [];
   if (movies.length) parts.push(buildLibraryDigest(movies, 'movies'));
   if (tvSeries.length) parts.push(buildLibraryDigest(tvSeries, 'TV series'));
+  // Reactions to past AI recommendations are taste signal too. Text kept
+  // identical to backend/taste-analyzer.js.
+  const fbInterested = (feedback?.interested || []).slice(0, 15);
+  const fbNotForMe = (feedback?.notForMe || []).slice(0, 15);
+  if (fbInterested.length || fbNotForMe.length) {
+    const fbLines = [];
+    if (fbInterested.length) fbLines.push(`- Added to watchlist (excited me): ${fbInterested.join('; ')}`);
+    if (fbNotForMe.length) fbLines.push(`- Rejected ("not for me"): ${fbNotForMe.join('; ')}`);
+    parts.push(`Feedback I gave on AI recommendations:\n${fbLines.join('\n')}`);
+  }
   const digest = parts.join('\n\n') || 'My library is currently empty.';
   const { systemPrompt, userPrompt } = buildTasteAnalysisPrompt(digest, 'movies & TV');
   const provider = getProvider(settings.provider);

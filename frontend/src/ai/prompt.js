@@ -8,6 +8,22 @@ export function normalizeTitle(s) {
     .trim();
 }
 
+// Cheap order-independent hash (djb2 over sorted parts, base36). Mirrored
+// verbatim in backend/ollama-recommender.js — keep output byte-identical so a
+// signature computed in one mode isn't falsely stale in the other.
+export function hashStrings(parts) {
+  const s = [...parts].sort().join(';');
+  let h = 5381;
+  for (let i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) >>> 0;
+  return h.toString(36);
+}
+
+// Hash over id|rating|status so rating/status edits change the signature,
+// not just adds/removes. Mirrored verbatim in backend/ollama-recommender.js.
+export function hashLibrary(rows) {
+  return hashStrings((rows || []).map((r) => `${r.id}|${r.rating ?? ''}|${r.status ?? ''}`));
+}
+
 // ---------------------------------------------------------------------------
 // Library digest — the richer taste signal fed into the recommendation prompt.
 // Mirrored verbatim in backend/ollama-recommender.js. Keep the two in sync.
@@ -34,9 +50,12 @@ export function buildLibraryDigest(userMovies, contentLabel) {
 
   // Partition into non-overlapping loved (top) and disliked (bottom) so a small
   // library isn't printed twice.
+  // Only titles rated poorly qualify as "disliked" — an all-high-rated library
+  // shouldn't present its 8/10s as steer-away material.
   const n = byRatingDesc.length;
+  const poorlyRatedCount = byRatingDesc.filter((m) => m.rating <= 6).length;
   let lovedCount = Math.min(15, n);
-  let dislikedCount = n >= 8 ? Math.min(10, n) : 0;
+  let dislikedCount = n >= 8 ? Math.min(10, poorlyRatedCount) : 0;
   if (lovedCount + dislikedCount > n) {
     dislikedCount = Math.min(dislikedCount, Math.floor(n / 2));
     lovedCount = Math.min(lovedCount, n - dislikedCount);
@@ -96,6 +115,29 @@ export function buildLibraryDigest(userMovies, contentLabel) {
   return digest;
 }
 
+// Feedback the user gave on past AI recommendations, folded into the rec prompt
+// as a strong steering signal. Input: { interested: [], notForMe: [], seenIt: [] }
+// (title strings, already deduped/capped by the caller). Mirrored verbatim in
+// backend/ollama-recommender.js. Keep the two in sync.
+export function formatRecFeedbackForPrompt(feedback) {
+  if (!feedback || typeof feedback !== 'object') return '';
+  const notForMe = Array.isArray(feedback.notForMe) ? feedback.notForMe : [];
+  const interested = Array.isArray(feedback.interested) ? feedback.interested : [];
+  const seenIt = Array.isArray(feedback.seenIt) ? feedback.seenIt : [];
+  if (!notForMe.length && !interested.length && !seenIt.length) return '';
+  const lines = [];
+  if (notForMe.length) {
+    lines.push(`- Rejected ("not for me") — never recommend these again, and avoid recommending similar titles; learn what these have in common: ${notForMe.join('; ')}`);
+  }
+  if (interested.length) {
+    lines.push(`- Added to my watchlist from your past recommendations — do NOT recommend them again, but they show exactly what excites me; favor more like these: ${interested.join('; ')}`);
+  }
+  if (seenIt.length) {
+    lines.push(`- Already seen (not in my log) — do NOT recommend: ${seenIt.join('; ')}`);
+  }
+  return `I have reacted to past AI recommendations — use this as a strong signal:\n${lines.join('\n')}`;
+}
+
 export function buildRecommendationPrompt(userMovies, type, contentType, options = {}) {
   const contentLabel = contentType === 'tv' ? 'TV series' : 'movies';
   const extraExclusions = Array.isArray(options.extraExclusions) ? options.extraExclusions : [];
@@ -150,9 +192,25 @@ Return ONLY valid JSON in this format:
   const watchedTitlesList = [...new Set(watchedSorted.map((m) => m.title).filter(Boolean))]
     .map((t) => `- ${t}`)
     .join('\n');
+
+  // Feedback titles are the durable layer: dedupe them against the watched list,
+  // and let feedback wording win over the plain recently-shown exclusion.
+  const watchedNorm = new Set((userMovies || []).map((m) => normalizeTitle(m.title)));
+  const dropWatched = (titles) => (Array.isArray(titles) ? titles.filter((t) => !watchedNorm.has(normalizeTitle(t))) : []);
+  const feedback = options.feedback || {};
+  const fbNotForMe = dropWatched(feedback.notForMe);
+  const fbInterested = dropWatched(feedback.interested);
+  const fbSeenIt = dropWatched(feedback.seenIt);
+  const feedbackNorm = new Set([...fbNotForMe, ...fbInterested, ...fbSeenIt].map(normalizeTitle));
+  const shownExclusions = extraExclusions.filter((t) => !feedbackNorm.has(normalizeTitle(t)));
+
   let exclusionBlock = `\n\nIMPORTANT: I have already watched the following ${contentLabel}. Do NOT recommend any of these, or any obvious re-releases / remasters / alternate cuts / sequels-I've-already-seen of them:\n\n${watchedTitlesList}\n\nReturn only titles I have NOT seen.`;
-  if (extraExclusions.length) {
-    exclusionBlock += `\n\nAlso do NOT recommend any of these — I was just shown them and want something new:\n${extraExclusions.map((t) => `- ${t}`).join('\n')}`;
+  if (shownExclusions.length) {
+    exclusionBlock += `\n\nAlso do NOT recommend any of these — I was just shown them and want something new:\n${shownExclusions.map((t) => `- ${t}`).join('\n')}`;
+  }
+  const feedbackBlock = formatRecFeedbackForPrompt({ notForMe: fbNotForMe, interested: fbInterested, seenIt: fbSeenIt });
+  if (feedbackBlock) {
+    exclusionBlock += `\n\n${feedbackBlock}`;
   }
 
   let userPrompt = '';

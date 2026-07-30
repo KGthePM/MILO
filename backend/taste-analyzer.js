@@ -4,17 +4,17 @@ const {
   buildLibraryDigest,
   buildTasteAnalysisPrompt,
   parseTasteProfileJSON,
+  hashLibrary,
   callOllama,
 } = require('./ollama-recommender');
 
 // Signature over the whole watched library (movies + TV) so the UI can flag a
-// profile as stale when the library changes. Mirrors the recommender's
-// librarySignature idea but spans both content types.
+// profile as stale when the library changes — including rating/status edits,
+// not just adds/removes. Mirrors profileSignature in frontend/src/api/cloud.js.
 function profileSignature(movies = [], tvSeries = []) {
   const all = [...movies, ...tvSeries];
   if (all.length === 0) return '0:';
-  const maxId = all.reduce((m, r) => Math.max(m, Number(r.id) || 0), 0);
-  return `${all.length}:${maxId}`;
+  return `${all.length}:${hashLibrary(all)}`;
 }
 
 // Compile a distilled, structured taste profile from the full library via Ollama.

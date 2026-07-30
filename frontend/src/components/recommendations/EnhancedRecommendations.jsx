@@ -1,9 +1,13 @@
 import { motion, AnimatePresence } from 'framer-motion';
-import { Sparkles, RefreshCw, Filter, Loader2, AlertCircle, Play, Settings as SettingsIcon, Brain } from 'lucide-react';
+import { Sparkles, RefreshCw, Filter, Loader2, AlertCircle, Play, Settings as SettingsIcon, Brain, ThumbsUp, ThumbsDown, EyeOff } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { api as movieApi } from '../../api/movieApi';
 import { tvApi } from '../../api/tvApi';
 import { api as tasteApi } from '../../api/tasteApi';
+import { api as feedbackApi } from '../../api/feedbackApi';
+import { normalizeTitle } from '../../ai/prompt';
+import { useMovies } from '../../utils/MovieContext';
+import { useTVSeries } from '../../utils/TVSeriesContext';
 import { IS_CLOUD } from '../../utils/mode';
 import { loadAISettings, getActiveKey } from '../../utils/aiSettings';
 
@@ -50,6 +54,13 @@ export default function EnhancedRecommendations({ contentType = 'movie' }) {
   const [tasteMeta, setTasteMeta] = useState(null); // { generatedAt, stale }
   const [tasteLoading, setTasteLoading] = useState(false);
   const [tasteError, setTasteError] = useState(null);
+
+  // Feedback on rec cards — durable personalization layer (cloud-first for now).
+  // Keyed `${contentType}:${normalizeTitle(title)}` → { feedback, addedId? }.
+  const [feedbackMap, setFeedbackMap] = useState({});
+  const [feedbackBusy, setFeedbackBusy] = useState(null);
+  const { fetchMovies, deleteMovie } = useMovies();
+  const { fetchSeries, deleteSeries } = useTVSeries();
 
   const contentLabel = contentType === 'tv' ? 'TV' : 'Movies';
   const accent = contentType === 'tv' ? 'magenta' : 'cyan';
@@ -132,6 +143,91 @@ export default function EnhancedRecommendations({ contentType = 'movie' }) {
       cancelled = true;
     };
   }, [hasStarted]);
+
+  // Seed previously-given feedback so reappearing titles render marked.
+  useEffect(() => {
+    if (!IS_CLOUD || !hasStarted) return;
+    let cancelled = false;
+    feedbackApi
+      .list({ content: contentType })
+      .then((res) => {
+        if (cancelled) return;
+        const map = {};
+        for (const row of res.feedback || []) {
+          map[`${row.content_type}:${row.normalized_title}`] = { feedback: row.feedback };
+        }
+        setFeedbackMap(map);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [hasStarted, contentType]);
+
+  const feedbackKeyFor = (rec) => `${rec.contentType || contentType}:${normalizeTitle(rec.title)}`;
+
+  const handleFeedback = async (rec, verb) => {
+    if (feedbackBusy) return;
+    const ct = rec.contentType || contentType;
+    const key = feedbackKeyFor(rec);
+    const current = feedbackMap[key];
+    setFeedbackBusy(key);
+    try {
+      // Undo the watchlist row we created this session when leaving 'interested'
+      // (never touches a pre-existing watchlist entry).
+      const removeAdded = async () => {
+        if (current?.feedback === 'interested' && current.addedId) {
+          if (ct === 'tv') await deleteSeries(current.addedId);
+          else await deleteMovie(current.addedId);
+        }
+      };
+
+      if (current?.feedback === verb) {
+        await feedbackApi.remove({ title: rec.title, contentType: ct });
+        await removeAdded();
+        setFeedbackMap((m) => {
+          const next = { ...m };
+          delete next[key];
+          return next;
+        });
+        return;
+      }
+
+      await feedbackApi.record({
+        title: rec.title,
+        contentType: ct,
+        feedback: verb,
+        year: rec.year ? Number(rec.year) || null : null,
+        genre: rec.genre || null,
+        recType: rec.type || null,
+        model: (IS_CLOUD ? cloudSettings?.model : selectedModel) || null,
+      });
+      await removeAdded();
+
+      let addedId = null;
+      if (verb === 'interested') {
+        try {
+          const payload = {
+            title: rec.title,
+            genre: rec.genre || null,
+            release_year: rec.year ? Number(rec.year) || null : null,
+            status: 'to_watch',
+          };
+          const created = ct === 'tv' ? await tvApi.addSeries(payload) : await movieApi.addMovie(payload);
+          addedId = created?.id ?? null;
+          if (ct === 'tv') await fetchSeries();
+          else await fetchMovies();
+        } catch (e) {
+          if (e?.status !== 409) throw e; // already in library — treat as success
+        }
+      }
+      setFeedbackMap((m) => ({ ...m, [key]: { feedback: verb, addedId } }));
+    } catch (e) {
+      console.error('Feedback failed:', e);
+    } finally {
+      setFeedbackBusy(null);
+    }
+  };
 
   const handleAnalyze = async () => {
     setTasteLoading(true);
@@ -374,13 +470,19 @@ export default function EnhancedRecommendations({ contentType = 'movie' }) {
               </motion.div>
             ) : (
               <div className="space-y-3">
-                {filteredRecommendations.map((rec, index) => (
+                {filteredRecommendations.map((rec, index) => {
+                  const fbKey = feedbackKeyFor(rec);
+                  const fbActive = feedbackMap[fbKey]?.feedback;
+                  const fbBusy = feedbackBusy === fbKey;
+                  const fbBtnBase = 'flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-xs transition-all disabled:opacity-50 disabled:cursor-not-allowed';
+                  const fbBtnIdle = 'bg-black/20 border-white/10 text-white/60 hover:border-white/30 hover:text-white';
+                  return (
                   <motion.div
                     key={`${rec.type}-${index}`}
                     initial={{ opacity: 0, x: -20 }}
                     animate={{ opacity: 1, x: 0 }}
                     transition={{ delay: index * 0.05 }}
-                    className="bg-black/20 rounded-lg p-4 border border-white/10 hover:border-white/20 transition-all"
+                    className={`bg-black/20 rounded-lg p-4 border border-white/10 hover:border-white/20 transition-all ${fbActive === 'not_for_me' ? 'opacity-60' : ''}`}
                   >
                     <div className="flex items-start justify-between mb-2">
                       <div>
@@ -407,13 +509,42 @@ export default function EnhancedRecommendations({ contentType = 'movie' }) {
                       </div>
                     </div>
                     <p className="text-white/70 text-sm leading-relaxed">{rec.explanation}</p>
+                    {IS_CLOUD && source === 'ai' && (
+                      <div className="flex flex-wrap items-center gap-2 mt-3">
+                        <button
+                          onClick={() => handleFeedback(rec, 'interested')}
+                          disabled={fbBusy}
+                          className={`${fbBtnBase} ${fbActive === 'interested' ? `bg-${accent}/20 border-${accent}/40 text-white` : fbBtnIdle}`}
+                        >
+                          <ThumbsUp size={12} />
+                          {fbActive === 'interested' ? 'Added to watchlist' : 'Interested'}
+                        </button>
+                        <button
+                          onClick={() => handleFeedback(rec, 'not_for_me')}
+                          disabled={fbBusy}
+                          className={`${fbBtnBase} ${fbActive === 'not_for_me' ? 'bg-red-500/20 border-red-500/50 text-red-300' : fbBtnIdle}`}
+                        >
+                          <ThumbsDown size={12} />
+                          Not for me
+                        </button>
+                        <button
+                          onClick={() => handleFeedback(rec, 'seen_it')}
+                          disabled={fbBusy}
+                          className={`${fbBtnBase} ${fbActive === 'seen_it' ? 'bg-white/15 border-white/40 text-white' : fbBtnIdle}`}
+                        >
+                          <EyeOff size={12} />
+                          Seen it
+                        </button>
+                      </div>
+                    )}
                     {rec.cached && (
                       <div className="mt-2">
                         <span className="text-xs text-white/40">From cache</span>
                       </div>
                     )}
                   </motion.div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </AnimatePresence>

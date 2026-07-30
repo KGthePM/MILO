@@ -16,10 +16,25 @@ function normalizeTitle(s) {
     .trim();
 }
 
+// Cheap order-independent hash (djb2 over sorted parts, base36). Mirrored
+// verbatim in frontend/src/ai/prompt.js — keep output byte-identical so a
+// signature computed in one mode isn't falsely stale in the other.
+function hashStrings(parts) {
+  const s = [...parts].sort().join(';');
+  let h = 5381;
+  for (let i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) >>> 0;
+  return h.toString(36);
+}
+
+// Hash over id|rating|status so rating/status edits change the signature,
+// not just adds/removes. Mirrored verbatim in frontend/src/ai/prompt.js.
+function hashLibrary(rows) {
+  return hashStrings((rows || []).map((r) => `${r.id}|${r.rating ?? ''}|${r.status ?? ''}`));
+}
+
 function librarySignature(userMovies) {
   if (!userMovies || userMovies.length === 0) return '0:';
-  const last = userMovies[userMovies.length - 1];
-  return `${userMovies.length}:${last?.id ?? ''}`;
+  return `${userMovies.length}:${hashLibrary(userMovies)}`;
 }
 
 // Generate cache key
@@ -95,9 +110,12 @@ function buildLibraryDigest(userMovies, contentLabel) {
 
   // Partition into non-overlapping loved (top) and disliked (bottom) so a small
   // library isn't printed twice.
+  // Only titles rated poorly qualify as "disliked" — an all-high-rated library
+  // shouldn't present its 8/10s as steer-away material.
   const n = byRatingDesc.length;
+  const poorlyRatedCount = byRatingDesc.filter(m => m.rating <= 6).length;
   let lovedCount = Math.min(15, n);
-  let dislikedCount = n >= 8 ? Math.min(10, n) : 0;
+  let dislikedCount = n >= 8 ? Math.min(10, poorlyRatedCount) : 0;
   if (lovedCount + dislikedCount > n) {
     dislikedCount = Math.min(dislikedCount, Math.floor(n / 2));
     lovedCount = Math.min(lovedCount, n - dislikedCount);
@@ -285,6 +303,29 @@ function formatTasteProfileForPrompt(profile) {
   return `Here is my saved taste profile (a distilled read of my library — treat it as the primary guide):\n${lines.join('\n')}`;
 }
 
+// Feedback the user gave on past AI recommendations, folded into the rec prompt
+// as a strong steering signal. Input: { interested: [], notForMe: [], seenIt: [] }
+// (title strings, already deduped/capped by the caller). Mirrored verbatim in
+// frontend/src/ai/prompt.js. Keep the two in sync.
+function formatRecFeedbackForPrompt(feedback) {
+  if (!feedback || typeof feedback !== 'object') return '';
+  const notForMe = Array.isArray(feedback.notForMe) ? feedback.notForMe : [];
+  const interested = Array.isArray(feedback.interested) ? feedback.interested : [];
+  const seenIt = Array.isArray(feedback.seenIt) ? feedback.seenIt : [];
+  if (!notForMe.length && !interested.length && !seenIt.length) return '';
+  const lines = [];
+  if (notForMe.length) {
+    lines.push(`- Rejected ("not for me") — never recommend these again, and avoid recommending similar titles; learn what these have in common: ${notForMe.join('; ')}`);
+  }
+  if (interested.length) {
+    lines.push(`- Added to my watchlist from your past recommendations — do NOT recommend them again, but they show exactly what excites me; favor more like these: ${interested.join('; ')}`);
+  }
+  if (seenIt.length) {
+    lines.push(`- Already seen (not in my log) — do NOT recommend: ${seenIt.join('; ')}`);
+  }
+  return `I have reacted to past AI recommendations — use this as a strong signal:\n${lines.join('\n')}`;
+}
+
 // Build recommendation prompt based on type
 function buildRecommendationPrompt(userMovies, type, contentType, options = {}) {
   const contentLabel = contentType === 'tv' ? 'TV series' : 'movies';
@@ -342,9 +383,25 @@ Return ONLY valid JSON in this format:
   const watchedTitlesList = [...new Set(watchedSorted.map(m => m.title).filter(Boolean))]
     .map(t => `- ${t}`)
     .join('\n');
+
+  // Feedback titles are the durable layer: dedupe them against the watched list,
+  // and let feedback wording win over the plain recently-shown exclusion.
+  const watchedNorm = new Set((userMovies || []).map(m => normalizeTitle(m.title)));
+  const dropWatched = (titles) => (Array.isArray(titles) ? titles.filter(t => !watchedNorm.has(normalizeTitle(t))) : []);
+  const feedback = options.feedback || {};
+  const fbNotForMe = dropWatched(feedback.notForMe);
+  const fbInterested = dropWatched(feedback.interested);
+  const fbSeenIt = dropWatched(feedback.seenIt);
+  const feedbackNorm = new Set([...fbNotForMe, ...fbInterested, ...fbSeenIt].map(normalizeTitle));
+  const shownExclusions = extraExclusions.filter(t => !feedbackNorm.has(normalizeTitle(t)));
+
   let exclusionBlock = `\n\nIMPORTANT: I have already watched the following ${contentLabel}. Do NOT recommend any of these, or any obvious re-releases / remasters / alternate cuts / sequels-I've-already-seen of them:\n\n${watchedTitlesList}\n\nReturn only titles I have NOT seen.`;
-  if (extraExclusions.length) {
-    exclusionBlock += `\n\nAlso do NOT recommend any of these — I was just shown them and want something new:\n${extraExclusions.map(t => `- ${t}`).join('\n')}`;
+  if (shownExclusions.length) {
+    exclusionBlock += `\n\nAlso do NOT recommend any of these — I was just shown them and want something new:\n${shownExclusions.map(t => `- ${t}`).join('\n')}`;
+  }
+  const feedbackBlock = formatRecFeedbackForPrompt({ notForMe: fbNotForMe, interested: fbInterested, seenIt: fbSeenIt });
+  if (feedbackBlock) {
+    exclusionBlock += `\n\n${feedbackBlock}`;
   }
 
   if (type === 'similar') {
@@ -478,11 +535,15 @@ async function generateRecommendations(userMovies, type = 'similar', contentType
   }
   const refresh = !!options.refresh;
   const tasteProfile = options.tasteProfile || null;
+  const feedback = options.feedback || null;
+  const feedbackSignature = options.feedbackSignature || '';
   const recentKey = `${contentType}:${type}:${resolvedModel}`;
   try {
-    // Include a profile marker in the signature so adding/removing a saved
-    // profile invalidates cached recs even when the library is unchanged.
-    const sig = librarySignature(userMovies) + (tasteProfile ? ':p' : '');
+    // Include profile + feedback markers in the signature so a saved profile or
+    // new feedback invalidates cached recs even when the library is unchanged.
+    const sig = librarySignature(userMovies)
+      + (tasteProfile ? ':p' : '')
+      + (feedbackSignature ? `:fb${feedbackSignature}` : '');
     if (!refresh) {
       const cached = getCachedRecommendations(contentType, type, resolvedModel, sig);
       if (cached) {
@@ -491,7 +552,7 @@ async function generateRecommendations(userMovies, type = 'similar', contentType
     }
 
     const extraExclusions = refresh ? (recentlyRecommended.get(recentKey) || []) : [];
-    const { systemPrompt, userPrompt } = buildRecommendationPrompt(userMovies, type, contentType, { extraExclusions, tasteProfile });
+    const { systemPrompt, userPrompt } = buildRecommendationPrompt(userMovies, type, contentType, { extraExclusions, tasteProfile, feedback });
     const genOptions = refresh
       ? { seed: Math.floor(Math.random() * 1e9), temperature: 0.9 }
       : {};
@@ -500,9 +561,14 @@ async function generateRecommendations(userMovies, type = 'similar', contentType
 
     if (parsed && parsed.recommendations) {
       const watchedSet = new Set((userMovies || []).map(m => normalizeTitle(m.title)));
+      // Hard-filter feedback titles too — the model may ignore instructions.
+      const feedbackSet = new Set(
+        [...(feedback?.notForMe || []), ...(feedback?.interested || []), ...(feedback?.seenIt || [])].map(normalizeTitle)
+      );
       const validRecommendations = parsed.recommendations.filter(rec =>
         rec.title && rec.explanation && rec.confidence >= 1 && rec.confidence <= 10
           && !watchedSet.has(normalizeTitle(rec.title))
+          && !feedbackSet.has(normalizeTitle(rec.title))
       );
 
       if (validRecommendations.length > 0) {
@@ -529,11 +595,14 @@ module.exports = {
   clearCache,
   clearAllCache,
   getCachedRecommendations,
-  // Reused by backend/taste-analyzer.js
+  // Reused by backend/taste-analyzer.js and backend/routes/index.js
   buildLibraryDigest,
   buildTasteAnalysisPrompt,
   parseTasteProfileJSON,
   formatTasteProfileForPrompt,
   librarySignature,
+  normalizeTitle,
+  hashStrings,
+  hashLibrary,
   callOllama
 };

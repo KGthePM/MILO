@@ -38,6 +38,7 @@ function initializeDatabase() {
       console.log('Movies table ready');
       migrateDatabase();
       ensureTasteProfilesTable();
+      ensureRecFeedbackTable();
     }
   });
 }
@@ -59,6 +60,34 @@ function ensureTasteProfilesTable() {
       console.error('Error creating taste_profiles table:', err.message);
     } else {
       console.log('Taste profiles table ready');
+    }
+  });
+}
+
+// Feedback on AI recommendations (mirrors supabase/migrations/0007_rec_feedback.sql
+// minus user_id). One row per (normalized_title, content_type); re-reacting upserts.
+// Idempotent — safe to run on every startup.
+function ensureRecFeedbackTable() {
+  db.run(`
+    CREATE TABLE IF NOT EXISTS rec_feedback (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      title TEXT NOT NULL,
+      normalized_title TEXT NOT NULL,
+      content_type TEXT NOT NULL DEFAULT 'movie',
+      feedback TEXT NOT NULL CHECK(feedback IN ('interested', 'not_for_me', 'seen_it')),
+      year INTEGER,
+      genre TEXT,
+      rec_type TEXT,
+      model TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE (normalized_title, content_type)
+    )
+  `, (err) => {
+    if (err) {
+      console.error('Error creating rec_feedback table:', err.message);
+    } else {
+      console.log('Rec feedback table ready');
     }
   });
 }

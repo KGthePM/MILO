@@ -4,7 +4,7 @@ import {
   listModels as aiListModels,
   generateTasteProfile as aiGenerateTasteProfile,
 } from '../ai';
-import { normalizeTitle } from '../ai/prompt';
+import { normalizeTitle, hashLibrary } from '../ai/prompt';
 import { loadAISettings } from '../utils/aiSettings';
 import { parseLetterboxdCSV, processLetterboxdRows } from './letterboxdClient';
 import { parseMiloDb, processDbRows } from './dbClient';
@@ -37,13 +37,37 @@ async function requireUserId() {
 
 const TASTE_TABLE = 'taste_profiles';
 
-// Signature over the whole watched library (movies + TV). Mirrors
-// backend/taste-analyzer.js profileSignature so staleness is computed the same way.
+// Signature over the whole watched library (movies + TV) — including
+// rating/status edits, not just adds/removes. Mirrors backend/taste-analyzer.js
+// profileSignature so staleness is computed the same way.
 function profileSignature(movies = [], tvSeries = []) {
   const all = [...movies, ...tvSeries];
   if (all.length === 0) return '0:';
-  const maxId = all.reduce((m, r) => Math.max(m, Number(r.id) || 0), 0);
-  return `${all.length}:${maxId}`;
+  return `${all.length}:${hashLibrary(all)}`;
+}
+
+const FEEDBACK_TABLE = 'rec_feedback';
+
+// Group feedback rows (most recent first) into capped title lists for prompts.
+function groupFeedback(rows) {
+  const grouped = { interested: [], notForMe: [], seenIt: [] };
+  const caps = { interested: 25, notForMe: 40, seenIt: 40 };
+  const keyFor = { interested: 'interested', not_for_me: 'notForMe', seen_it: 'seenIt' };
+  for (const row of rows || []) {
+    const key = keyFor[row.feedback];
+    if (key && grouped[key].length < caps[key]) grouped[key].push(row.title);
+  }
+  return grouped;
+}
+
+async function listFeedbackRows(contentType = null) {
+  const sb = getSupabase();
+  const user_id = await requireUserId();
+  let q = sb.from(FEEDBACK_TABLE).select('*').eq('user_id', user_id).order('updated_at', { ascending: false });
+  if (contentType && contentType !== 'all') q = q.eq('content_type', contentType);
+  const { data, error } = await q;
+  if (error) throw new Error(error.message);
+  return data || [];
 }
 
 // Load the saved taste profile object (or null) — used to enrich recs + assistant.
@@ -205,22 +229,35 @@ export const movieApi = {
 
     const tasteProfile = await loadSavedTasteProfile();
 
+    let feedbackRows = [];
+    try {
+      feedbackRows = await listFeedbackRows();
+    } catch (e) {
+      console.error('Failed to load rec feedback:', e.message);
+    }
+
     const allRecs = [];
     let lastError = null;
     for (const recType of recTypes) {
       for (const ct of contentTypes) {
         try {
           const recentKey = `${ct}:${recType}`;
+          const feedback = groupFeedback(feedbackRows.filter((r) => r.content_type === ct));
           const recs = await aiGenerate({
             userMovies: rowsByType[ct],
             type: recType,
             contentType: ct,
             extraExclusions: recentlyRecommended.get(recentKey) || [],
             tasteProfile,
+            feedback,
             settings,
           });
           const watchedSet = new Set(rowsByType[ct].map((r) => normalizeTitle(r.title)));
-          const filtered = recs.filter((r) => !watchedSet.has(normalizeTitle(r.title)));
+          // Hard-filter feedback titles too — the model may ignore instructions.
+          const feedbackSet = new Set(
+            [...feedback.interested, ...feedback.notForMe, ...feedback.seenIt].map(normalizeTitle)
+          );
+          const filtered = recs.filter((r) => !watchedSet.has(normalizeTitle(r.title)) && !feedbackSet.has(normalizeTitle(r.title)));
           rememberRecs(recentKey, filtered.map((r) => r.title));
           filtered.forEach((r) => allRecs.push({ ...r, type: recType, contentType: ct, cached: false }));
         } catch (e) {
@@ -370,7 +407,14 @@ export const tasteApi = {
       throw new Error('Add some watched titles before analyzing your taste.');
     }
 
-    const profile = await aiGenerateTasteProfile({ movies, tvSeries, settings });
+    let feedback = null;
+    try {
+      feedback = groupFeedback(await listFeedbackRows());
+    } catch (e) {
+      console.error('Failed to load rec feedback:', e.message);
+    }
+
+    const profile = await aiGenerateTasteProfile({ movies, tvSeries, feedback, settings });
     const signature = profileSignature(movies, tvSeries);
 
     const { error } = await sb.from(TASTE_TABLE).upsert(
@@ -388,5 +432,57 @@ export const tasteApi = {
     if (error) throw new Error(error.message);
 
     return { profile, model: settings.model, signature, generatedAt: new Date().toISOString(), stale: false };
+  },
+};
+
+// Feedback on AI recommendation cards — the durable personalization layer.
+// One row per (user, normalized title, content type); re-reacting upserts.
+export const feedbackApi = {
+  async list({ content } = {}) {
+    const rows = await listFeedbackRows(content || null);
+    return { feedback: rows };
+  },
+
+  async record({ title, contentType = 'movie', feedback, year = null, genre = null, recType = null, model = null }) {
+    if (!title) throw new Error('Title is required');
+    if (!['interested', 'not_for_me', 'seen_it'].includes(feedback)) {
+      throw new Error('Invalid feedback value');
+    }
+    const sb = getSupabase();
+    const user_id = await requireUserId();
+    const { data, error } = await sb
+      .from(FEEDBACK_TABLE)
+      .upsert(
+        {
+          user_id,
+          title,
+          normalized_title: normalizeTitle(title),
+          content_type: contentType,
+          feedback,
+          year,
+          genre,
+          rec_type: recType,
+          model,
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: 'user_id,normalized_title,content_type' }
+      )
+      .select()
+      .single();
+    if (error) throw new Error(error.message);
+    return data;
+  },
+
+  async remove({ title, contentType = 'movie' }) {
+    const sb = getSupabase();
+    const user_id = await requireUserId();
+    const { error } = await sb
+      .from(FEEDBACK_TABLE)
+      .delete()
+      .eq('user_id', user_id)
+      .eq('normalized_title', normalizeTitle(title))
+      .eq('content_type', contentType);
+    if (error) throw new Error(error.message);
+    return { message: 'Feedback removed' };
   },
 };
