@@ -96,7 +96,7 @@ export async function generateTasteProfile({
     systemPrompt,
     userPrompt,
     ...providerCallOpts(settings),
-    maxTokens: 1500,
+    maxTokens: 4000,
     signal,
   });
   const profile = parseTasteProfileJSON(text);
