@@ -16,6 +16,8 @@ function IconBtn({ onClick, title, children, accent = 'white', as = 'button', to
       ? 'text-neon-cyan hover:text-white hover:bg-neon-cyan/20'
       : accent === 'magenta'
       ? 'text-neon-magenta hover:text-white hover:bg-neon-magenta/20'
+      : accent === 'red'
+      ? 'text-red-400 hover:text-white hover:bg-red-500/20'
       : 'text-white/70 hover:text-white hover:bg-white/10';
 
   const base = `flex items-center justify-center w-10 h-10 sm:w-11 sm:h-11 rounded-xl transition-all shrink-0 ${accentClass}`;
@@ -40,6 +42,7 @@ export default function FloatingCommandBar({ page, onAdd, onRefresh }) {
   const isMovies = page === 'movies';
   const accent = isMovies ? 'cyan' : 'magenta';
   const [session, setSession] = useState(null);
+  const [showSignOut, setShowSignOut] = useState(false);
 
   useEffect(() => {
     if (!IS_CLOUD) return;
@@ -69,6 +72,7 @@ export default function FloatingCommandBar({ page, onAdd, onRefresh }) {
   const onMoviesPath = location.pathname === '/' || location.pathname === '/movies';
 
   return (
+    <>
     <motion.div
       initial={{ opacity: 0, y: 40 }}
       animate={{ opacity: 1, y: 0 }}
@@ -138,19 +142,6 @@ export default function FloatingCommandBar({ page, onAdd, onRefresh }) {
 
         <Divider />
 
-        {/* Auth (cloud only) */}
-        {IS_CLOUD && (
-          session ? (
-            <IconBtn onClick={handleLogout} title="Sign out">
-              <LogOut size={20} />
-            </IconBtn>
-          ) : (
-            <IconBtn as="link" to="/landing" title="Sign in" accent="cyan">
-              <LogIn size={20} />
-            </IconBtn>
-          )
-        )}
-
         {/* Friends (cloud only) */}
         {IS_CLOUD && (
           <IconBtn as="link" to="/friends" title="Friends" accent={location.pathname.startsWith('/friends') ? 'cyan' : 'white'}>
@@ -162,7 +153,44 @@ export default function FloatingCommandBar({ page, onAdd, onRefresh }) {
         <IconBtn as="link" to="/settings" title="Settings">
           <SettingsIcon size={20} />
         </IconBtn>
+
+        {/* Auth (cloud only) — at far end, separated to avoid accidental taps */}
+        {IS_CLOUD && (
+          <>
+            <Divider />
+            {session ? (
+              <motion.button
+                onClick={() => setShowSignOut(true)}
+                title="Sign out"
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                className="flex items-center gap-2 h-11 px-2.5 sm:px-3 rounded-xl font-medium text-sm transition-all shrink-0 text-red-400 hover:text-white hover:bg-red-500/20"
+              >
+                <LogOut size={20} />
+                <span className="hidden sm:inline">Sign out</span>
+              </motion.button>
+            ) : (
+              <IconBtn as="link" to="/landing" title="Sign in" accent="cyan">
+                <LogIn size={20} />
+              </IconBtn>
+            )}
+          </>
+        )}
       </div>
     </motion.div>
+    <ConfirmDialog
+      open={showSignOut}
+      title="Sign out?"
+      message="You'll need to sign in again to access your library."
+      confirmLabel="Sign out"
+      cancelLabel="Cancel"
+      danger
+      onConfirm={async () => {
+        setShowSignOut(false);
+        await handleLogout();
+      }}
+      onCancel={() => setShowSignOut(false)}
+    />
+    </>
   );
 }
