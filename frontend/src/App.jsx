@@ -32,23 +32,33 @@ function App() {
 
   return (
     <BrowserRouter>
-      <AuthGate>
-        <MovieProvider>
-          <TVSeriesProvider>
-            <Routes>
-              <Route path="/landing" element={<LandingPage />} />
-              <Route path="/" element={<MoviesPage />} />
-              <Route path="/movies" element={<MoviesPage />} />
-              <Route path="/tv" element={<TVSeriesPage />} />
-              <Route path="/settings" element={<SettingsPage />} />
-              {IS_CLOUD && <Route path="/friends" element={<FriendsPage />} />}
-              {IS_CLOUD && <Route path="/friends/:friendId" element={<FriendProfilePage />} />}
-            </Routes>
-            <MiloAssistantFab />
-          </TVSeriesProvider>
-        </MovieProvider>
-      </AuthGate>
+      <Routes>
+        {/* Public marketing page — rendered outside the auth gate */}
+        <Route path="/landing" element={<LandingPage />} />
+        {/* Everything else is gated behind auth (cloud mode) */}
+        <Route path="/*" element={<GatedApp />} />
+      </Routes>
     </BrowserRouter>
+  );
+}
+
+function GatedApp() {
+  return (
+    <AuthGate>
+      <MovieProvider>
+        <TVSeriesProvider>
+          <Routes>
+            <Route path="/" element={<MoviesPage />} />
+            <Route path="/movies" element={<MoviesPage />} />
+            <Route path="/tv" element={<TVSeriesPage />} />
+            <Route path="/settings" element={<SettingsPage />} />
+            {IS_CLOUD && <Route path="/friends" element={<FriendsPage />} />}
+            {IS_CLOUD && <Route path="/friends/:friendId" element={<FriendProfilePage />} />}
+          </Routes>
+          <MiloAssistantFab />
+        </TVSeriesProvider>
+      </MovieProvider>
+    </AuthGate>
   );
 }
 

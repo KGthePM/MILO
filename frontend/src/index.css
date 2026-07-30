@@ -93,6 +93,70 @@ html.light body {
   animation: pulse-glow 2s ease-in-out infinite;
 }
 
+/* Landing page animations & backgrounds */
+@keyframes gradient-shift {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+.gradient-bg {
+  background: linear-gradient(-45deg, #0a0a0f, #1a0a1a, #0a1a1a, #0a0a0f);
+  background-size: 400% 400%;
+  animation: gradient-shift 15s ease infinite;
+}
+
+.hero-gradient {
+  background: radial-gradient(circle at 50% 50%, rgba(0, 212, 255, 0.15) 0%, transparent 50%),
+              radial-gradient(circle at 80% 20%, rgba(255, 0, 110, 0.1) 0%, transparent 40%),
+              radial-gradient(circle at 20% 80%, rgba(131, 56, 236, 0.1) 0%, transparent 40%);
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0px); }
+  50% { transform: translateY(-20px); }
+}
+
+.float-animation {
+  animation: float 6s ease-in-out infinite;
+}
+
+@keyframes fade-in-up {
+  from { opacity: 0; transform: translateY(30px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.animate-fade-in-up {
+  animation: fade-in-up 0.8s ease-out forwards;
+}
+
+.delay-100 { animation-delay: 0.1s; }
+.delay-200 { animation-delay: 0.2s; }
+.delay-300 { animation-delay: 0.3s; }
+.delay-400 { animation-delay: 0.4s; }
+.delay-500 { animation-delay: 0.5s; }
+
+.tech-card:hover .tech-icon {
+  transform: scale(1.2);
+}
+
+.feature-icon {
+  transition: all 0.3s ease;
+}
+
+.feature-card:hover .feature-icon {
+  transform: scale(1.1) rotate(5deg);
+}
+
+/* Scoped to the landing page so app-wide .glass cards are unaffected */
+.landing-page .glass {
+  transition: all 0.3s ease;
+}
+
+.landing-page .glass:hover {
+  transform: translateY(-4px);
+}
+
 input, select, textarea {
   background: rgba(255, 255, 255, 0.05);
   border: 1px solid rgba(255, 255, 255, 0.1);

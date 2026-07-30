@@ -31,7 +31,7 @@ function CloudAuthGate({ children }) {
     try { sb = getSupabase(); } catch (e) { setError(e.message); setLoading(false); return; }
 
     const maybeRedirect = (s) => {
-      if (s && (pathRef.current === '/landing' || pathRef.current === '/')) {
+      if (s && (pathRef.current === '/landing' || pathRef.current === '/signin')) {
         navigate('/');
       }
     };
@@ -49,6 +49,14 @@ function CloudAuthGate({ children }) {
     });
     return () => { mounted = false; sub.subscription?.unsubscribe(); };
   }, [navigate]);
+
+  // Send signed-out visitors landing on the root to the marketing page
+  // instead of dropping them straight onto the sign-in form.
+  useEffect(() => {
+    if (!loading && !session && location.pathname === '/') {
+      navigate('/landing', { replace: true });
+    }
+  }, [loading, session, location.pathname, navigate]);
 
   const submit = async (e) => {
     e.preventDefault();
@@ -76,7 +84,9 @@ function CloudAuthGate({ children }) {
     }
   };
 
-  if (loading) {
+  // While redirecting a signed-out root visitor to /landing, show the
+  // loading placeholder rather than briefly flashing the sign-in form.
+  if (loading || (!session && location.pathname === '/')) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-black text-white/60">
         Loading…
