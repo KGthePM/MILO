@@ -493,7 +493,8 @@ router.get('/recommendations', async (req, res) => {
             userMovies,
             recType,
             contentType,
-            model
+            model,
+            { refresh: shouldRefresh }
           );
 
           if (result.recommendations && result.recommendations.length > 0) {

@@ -69,10 +69,99 @@ function clearCache(contentType, type, model) {
   }
 }
 
+// ---------------------------------------------------------------------------
+// Library digest — the richer taste signal fed into the recommendation prompt.
+// Mirrored verbatim in frontend/src/ai/prompt.js. Keep the two in sync.
+// ---------------------------------------------------------------------------
+
+function truncateNotes(notes, max = 120) {
+  if (!notes) return '';
+  const s = String(notes).replace(/\s+/g, ' ').trim();
+  return s.length > max ? s.slice(0, max - 1) + '…' : s;
+}
+
+function formatDigestLine(m) {
+  const bits = [`${m.rating}/10`];
+  if (m.genre) bits.push(m.genre);
+  if (m.director) bits.push('dir. ' + m.director);
+  if (m.release_year) bits.push(String(m.release_year));
+  const notes = truncateNotes(m.notes);
+  return `${m.title} (${bits.join(', ')})${notes ? ` — ${notes}` : ''}`;
+}
+
+function buildLibraryDigest(userMovies, contentLabel) {
+  const rated = userMovies.filter(m => typeof m.rating === 'number' && !Number.isNaN(m.rating));
+  const byRatingDesc = [...rated].sort((a, b) => b.rating - a.rating);
+
+  // Partition into non-overlapping loved (top) and disliked (bottom) so a small
+  // library isn't printed twice.
+  const n = byRatingDesc.length;
+  let lovedCount = Math.min(15, n);
+  let dislikedCount = n >= 8 ? Math.min(10, n) : 0;
+  if (lovedCount + dislikedCount > n) {
+    dislikedCount = Math.min(dislikedCount, Math.floor(n / 2));
+    lovedCount = Math.min(lovedCount, n - dislikedCount);
+  }
+  const loved = byRatingDesc.slice(0, lovedCount);
+  const lovedBlock = loved.map(m => `- ${formatDigestLine(m)}`).join('\n');
+
+  let dislikedBlock = '';
+  if (dislikedCount) {
+    const disliked = byRatingDesc.slice(n - dislikedCount).reverse();
+    dislikedBlock = disliked.map(m => `- ${formatDigestLine(m)}`).join('\n');
+  }
+
+  const genreStats = {};
+  for (const m of userMovies) {
+    if (!m.genre) continue;
+    const g = genreStats[m.genre] || (genreStats[m.genre] = { count: 0, sum: 0, rated: 0 });
+    g.count++;
+    if (typeof m.rating === 'number' && !Number.isNaN(m.rating)) { g.sum += m.rating; g.rated++; }
+  }
+  const genreLines = Object.entries(genreStats)
+    .sort((a, b) => b[1].count - a[1].count)
+    .slice(0, 12)
+    .map(([g, s]) => `${g}: ${s.count} watched, avg ${s.rated ? (s.sum / s.rated).toFixed(1) : 'n/a'}/10`)
+    .join('\n- ');
+
+  const dirCounts = {};
+  for (const m of userMovies) {
+    if (!m.director) continue;
+    dirCounts[m.director] = (dirCounts[m.director] || 0) + 1;
+  }
+  const directorLine = Object.entries(dirCounts)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 10)
+    .map(([d, c]) => (c > 1 ? `${d} (${c})` : d))
+    .join(', ');
+
+  const decadeCounts = {};
+  for (const m of userMovies) {
+    const y = parseInt(m.release_year, 10);
+    if (!y) continue;
+    const decade = `${Math.floor(y / 10) * 10}s`;
+    decadeCounts[decade] = (decadeCounts[decade] || 0) + 1;
+  }
+  const eraLine = Object.entries(decadeCounts)
+    .sort((a, b) => b[1] - a[1])
+    .map(([d, c]) => `${d} (${c})`)
+    .join(', ');
+
+  let digest = `Here is a digest of my ${contentLabel} library.\n\nLoved (my highest-rated):\n${lovedBlock}`;
+  if (dislikedBlock) {
+    digest += `\n\nDisliked (my lowest-rated — steer away from anything like these):\n${dislikedBlock}`;
+  }
+  if (genreLines) digest += `\n\nGenre distribution (count + average rating — high averages are what I truly love):\n- ${genreLines}`;
+  if (directorLine) digest += `\n\nDirectors I return to: ${directorLine}`;
+  if (eraLine) digest += `\n\nEras I watch (by release decade): ${eraLine}`;
+  return digest;
+}
+
 // Build recommendation prompt based on type
-function buildRecommendationPrompt(userMovies, type, contentType) {
+function buildRecommendationPrompt(userMovies, type, contentType, options = {}) {
   const contentLabel = contentType === 'tv' ? 'TV series' : 'movies';
-  
+  const extraExclusions = Array.isArray(options.extraExclusions) ? options.extraExclusions : [];
+
   let systemPrompt = `You are a ${contentLabel} recommendation expert. Analyze the user's viewing history and provide personalized recommendations.
 
 Never recommend a title the user has already watched.
@@ -91,7 +180,7 @@ Return ONLY valid JSON in this format:
 }`;
 
   let userPrompt = '';
-  
+
   if (userMovies.length === 0) {
     return {
       systemPrompt,
@@ -99,14 +188,7 @@ Return ONLY valid JSON in this format:
     };
   }
 
-  const topRated = userMovies
-    .sort((a, b) => b.rating - a.rating)
-    .slice(0, 5)
-    .map(m => `${m.title} (${m.rating}/10${m.genre ? ', ' + m.genre : ''}${m.director ? ', dir. ' + m.director : ''})`)
-    .join('\n- ');
-
-  const genres = [...new Set(userMovies.map(m => m.genre).filter(Boolean))];
-  const directors = [...new Set(userMovies.map(m => m.director).filter(Boolean))];
+  const digest = buildLibraryDigest(userMovies, contentLabel);
 
   const watchedSorted = [...userMovies]
     .sort((a, b) => {
@@ -118,29 +200,28 @@ Return ONLY valid JSON in this format:
   const watchedTitlesList = [...new Set(watchedSorted.map(m => m.title).filter(Boolean))]
     .map(t => `- ${t}`)
     .join('\n');
-  const exclusionBlock = `\n\nIMPORTANT: I have already watched the following ${contentLabel}. Do NOT recommend any of these, or any obvious re-releases / remasters / alternate cuts / sequels-I've-already-seen of them:\n\n${watchedTitlesList}\n\nReturn only titles I have NOT seen.`;
+  let exclusionBlock = `\n\nIMPORTANT: I have already watched the following ${contentLabel}. Do NOT recommend any of these, or any obvious re-releases / remasters / alternate cuts / sequels-I've-already-seen of them:\n\n${watchedTitlesList}\n\nReturn only titles I have NOT seen.`;
+  if (extraExclusions.length) {
+    exclusionBlock += `\n\nAlso do NOT recommend any of these — I was just shown them and want something new:\n${extraExclusions.map(t => `- ${t}`).join('\n')}`;
+  }
 
   if (type === 'similar') {
-    userPrompt = `Based on these highly-rated ${contentLabel} I've enjoyed:
+    userPrompt = `${digest}
 
-${topRated}
-
-Analyze the patterns in my preferences (genre, director, themes, style). Recommend 5 ${contentLabel} that are very similar to what I love, explaining why each matches my taste.
+Analyze the patterns in my preferences (genre, director, themes, style, era) and especially what I rate highly versus poorly. Recommend 5 ${contentLabel} that match what I love and avoid what I dislike, explaining why each fits my taste.
 
 Consider:
-- Similar genres and sub-genres
+- Genres and sub-genres I rate highly (favor my highest-average-rated genres)
 - Directors or creators with similar styles
 - Comparable themes and storytelling approaches
 - Similar production era or aesthetic`;
   } else if (type === 'hidden_gems') {
-    userPrompt = `Based on these ${contentLabel} I've watched and rated:
-
-${topRated}
+    userPrompt = `${digest}
 
 I want to discover lesser-known ${contentLabel} (hidden gems) that match my taste. Recommend 5 ${contentLabel} that are:
 - Not mainstream blockbusters or huge hits
 - Highly rated but may have flown under the radar
-- Perfect match for my preferences based on my viewing history
+- A strong match for what I love, steering clear of what I've rated poorly
 
 For each, explain why it's a hidden gem that fits my taste perfectly.`;
   }
@@ -151,20 +232,23 @@ For each, explain why it's a hidden gem that fits my taste perfectly.`;
 }
 
 // Call Ollama API
-async function callOllama(prompt, systemPrompt, model) {
+async function callOllama(prompt, systemPrompt, model, genOptions = {}) {
   return new Promise((resolve, reject) => {
     if (!model) {
       reject(new Error('No model specified. Pick one from the dropdown.'));
       return;
     }
+    const ollamaOptions = {
+      temperature: genOptions.temperature ?? 0.7,
+      num_predict: 1000
+    };
+    // A random seed on refresh diversifies output for an unchanged library.
+    if (typeof genOptions.seed === 'number') ollamaOptions.seed = genOptions.seed;
     const postData = JSON.stringify({
       model,
       prompt: systemPrompt + '\n\n' + prompt,
       stream: false,
-      options: {
-        temperature: 0.7,
-        num_predict: 1000
-      }
+      options: ollamaOptions
     });
 
     const ollamaUrl = process.env.OLLAMA_URL || 'http://localhost:11434';
@@ -234,21 +318,39 @@ function parseOllamaResponse(response) {
   }
 }
 
+// Anti-repetition: remember titles recently shown per contentType:type:model so
+// a refresh returns fresh picks. Bounded to the last ~30 per key.
+const recentlyRecommended = new Map();
+const RECENT_LIMIT = 30;
+function rememberRecs(key, titles) {
+  const prev = recentlyRecommended.get(key) || [];
+  const merged = [...titles, ...prev].filter(Boolean);
+  recentlyRecommended.set(key, [...new Set(merged)].slice(0, RECENT_LIMIT));
+}
+
 // Main function to generate recommendations
-async function generateRecommendations(userMovies, type = 'similar', contentType = 'movie', model) {
+async function generateRecommendations(userMovies, type = 'similar', contentType = 'movie', model, options = {}) {
   const resolvedModel = model || process.env.OLLAMA_MODEL;
   if (!resolvedModel) {
     throw new Error('No model specified. Pick one from the dropdown.');
   }
+  const refresh = !!options.refresh;
+  const recentKey = `${contentType}:${type}:${resolvedModel}`;
   try {
     const sig = librarySignature(userMovies);
-    const cached = getCachedRecommendations(contentType, type, resolvedModel, sig);
-    if (cached) {
-      return { recommendations: cached, cached: true };
+    if (!refresh) {
+      const cached = getCachedRecommendations(contentType, type, resolvedModel, sig);
+      if (cached) {
+        return { recommendations: cached, cached: true };
+      }
     }
 
-    const { systemPrompt, userPrompt } = buildRecommendationPrompt(userMovies, type, contentType);
-    const response = await callOllama(userPrompt, systemPrompt, resolvedModel);
+    const extraExclusions = refresh ? (recentlyRecommended.get(recentKey) || []) : [];
+    const { systemPrompt, userPrompt } = buildRecommendationPrompt(userMovies, type, contentType, { extraExclusions });
+    const genOptions = refresh
+      ? { seed: Math.floor(Math.random() * 1e9), temperature: 0.9 }
+      : {};
+    const response = await callOllama(userPrompt, systemPrompt, resolvedModel, genOptions);
     const parsed = parseOllamaResponse(response);
 
     if (parsed && parsed.recommendations) {
@@ -260,6 +362,7 @@ async function generateRecommendations(userMovies, type = 'similar', contentType
 
       if (validRecommendations.length > 0) {
         cacheRecommendations(contentType, type, resolvedModel, sig, validRecommendations);
+        rememberRecs(recentKey, validRecommendations.map(r => r.title));
         return { recommendations: validRecommendations, cached: false };
       }
     }

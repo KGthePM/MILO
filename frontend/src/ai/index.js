@@ -51,10 +51,13 @@ export async function generateRecommendations({
   userMovies,
   type,
   contentType,
+  extraExclusions = [],
   settings = loadAISettings(),
   signal,
 } = {}) {
-  const { systemPrompt, userPrompt } = buildRecommendationPrompt(userMovies, type, contentType);
+  const { systemPrompt, userPrompt } = buildRecommendationPrompt(userMovies, type, contentType, {
+    extraExclusions,
+  });
   const provider = getProvider(settings.provider);
   return provider.generateRecommendations({
     systemPrompt,

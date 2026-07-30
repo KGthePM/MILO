@@ -7,6 +7,17 @@ import { parseMiloDb, processDbRows } from './dbClient';
 
 const TABLE = 'movies';
 
+// Anti-repetition: remember titles recently shown per contentType:recType so
+// regenerations return fresh picks. Bounded to the last ~30 per key.
+const recentlyRecommended = new Map();
+const RECENT_LIMIT = 30;
+function rememberRecs(key, titles) {
+  const prev = recentlyRecommended.get(key) || [];
+  const merged = [...titles, ...prev].filter(Boolean);
+  const deduped = [...new Set(merged)].slice(0, RECENT_LIMIT);
+  recentlyRecommended.set(key, deduped);
+}
+
 function normalizeDateFields(row) {
   const out = { ...row };
   if (out.date_watched === '') out.date_watched = null;
@@ -165,14 +176,17 @@ export const movieApi = {
     for (const recType of recTypes) {
       for (const ct of contentTypes) {
         try {
+          const recentKey = `${ct}:${recType}`;
           const recs = await aiGenerate({
             userMovies: rowsByType[ct],
             type: recType,
             contentType: ct,
+            extraExclusions: recentlyRecommended.get(recentKey) || [],
             settings,
           });
           const watchedSet = new Set(rowsByType[ct].map((r) => normalizeTitle(r.title)));
           const filtered = recs.filter((r) => !watchedSet.has(normalizeTitle(r.title)));
+          rememberRecs(recentKey, filtered.map((r) => r.title));
           filtered.forEach((r) => allRecs.push({ ...r, type: recType, contentType: ct, cached: false }));
         } catch (e) {
           lastError = e;
