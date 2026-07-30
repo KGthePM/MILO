@@ -6,4 +6,4 @@ const provider = createOpenAICompatibleProvider({
   defaultModels: ['gemini-2.5-pro', 'gemini-2.5-flash'],
 });
 
-export const { listModels, generateRecommendations, chatAssistant } = provider;
+export const { listModels, chat, generateRecommendations, chatAssistant } = provider;

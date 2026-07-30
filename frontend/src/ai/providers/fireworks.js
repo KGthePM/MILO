@@ -6,4 +6,4 @@ const provider = createOpenAICompatibleProvider({
   defaultModels: ['accounts/fireworks/models/llama-v3p3-70b-instruct'],
 });
 
-export const { listModels, generateRecommendations, chatAssistant } = provider;
+export const { listModels, chat, generateRecommendations, chatAssistant } = provider;

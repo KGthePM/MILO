@@ -6,4 +6,4 @@ const provider = createOpenAICompatibleProvider({
   defaultModels: ['deepseek-chat', 'deepseek-reasoner'],
 });
 
-export const { listModels, generateRecommendations, chatAssistant } = provider;
+export const { listModels, chat, generateRecommendations, chatAssistant } = provider;

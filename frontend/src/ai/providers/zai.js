@@ -6,4 +6,4 @@ const provider = createOpenAICompatibleProvider({
   defaultModels: ['glm-4.6', 'glm-4.5', 'glm-4.5-air'],
 });
 
-export const { listModels, generateRecommendations, chatAssistant } = provider;
+export const { listModels, chat, generateRecommendations, chatAssistant } = provider;

@@ -6,4 +6,4 @@ const provider = createOpenAICompatibleProvider({
   defaultModels: ['mistral-large-latest', 'mistral-small-latest', 'codestral-latest'],
 });
 
-export const { listModels, generateRecommendations, chatAssistant } = provider;
+export const { listModels, chat, generateRecommendations, chatAssistant } = provider;

@@ -9,4 +9,4 @@ const provider = createOpenAICompatibleProvider({
   ],
 });
 
-export const { listModels, generateRecommendations, chatAssistant } = provider;
+export const { listModels, chat, generateRecommendations, chatAssistant } = provider;
