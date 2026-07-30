@@ -64,7 +64,19 @@ function CloudAuthGate({ children }) {
     try {
       const sb = getSupabase();
       if (mode === 'signin') {
-        const { error } = await sb.auth.signInWithPassword({ email, password });
+        // The first field accepts an email or a username. Anything with an
+        // '@' is treated as an email; otherwise resolve username -> email.
+        const identifier = email.trim();
+        let loginEmail = identifier;
+        if (!identifier.includes('@')) {
+          const { data: resolvedEmail, error: rpcErr } = await sb.rpc('email_for_username', {
+            p_username: identifier,
+          });
+          if (rpcErr) throw rpcErr;
+          if (!resolvedEmail) throw new Error('No account found with that username.');
+          loginEmail = resolvedEmail;
+        }
+        const { error } = await sb.auth.signInWithPassword({ email: loginEmail, password });
         if (error) throw error;
       } else {
         const trimmedUsername = username.trim();
@@ -111,9 +123,11 @@ function CloudAuthGate({ children }) {
           </p>
           <form onSubmit={submit} className="space-y-4">
             <label className="block">
-              <span className="text-white/70 text-sm flex items-center gap-2 mb-1"><Mail size={14}/> Email</span>
+              <span className="text-white/70 text-sm flex items-center gap-2 mb-1">
+                <Mail size={14}/> {mode === 'signin' ? 'Email or username' : 'Email'}
+              </span>
               <input
-                type="email" required value={email} onChange={(e) => setEmail(e.target.value)}
+                type={mode === 'signin' ? 'text' : 'email'} required value={email} onChange={(e) => setEmail(e.target.value)}
                 className="w-full bg-black/40 text-white rounded-lg px-3 py-2 border border-white/10 focus:border-cyan-500 outline-none"
               />
             </label>
