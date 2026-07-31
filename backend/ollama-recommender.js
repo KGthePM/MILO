@@ -6,6 +6,29 @@ const http = require('http');
 const cache = new Map();
 const CACHE_TTL = 24 * 60 * 60 * 1000; // 24 hours
 
+// Quick Hitters preset directives, mirrored from
+// frontend/src/recommendations/presets.js (the CommonJS backend can't import the
+// ESM module). A preset id arrives as the recommendation `type`; keep the
+// directive text in sync with the frontend module.
+const PRESET_DIRECTIVES = {
+  rainy_day: 'Right now I want cozy, immersive comfort viewing — the kind of bad-weather escapism you sink into under a blanket. Favor warm, absorbing, low-stress picks over anything abrasive or exhausting.',
+  feel_good: 'Right now I want an uplifting, feel-good watch — warm, satisfying, and hopeful, with an ending that leaves me better than it found me. Steer away from bleak or downer material.',
+  dark_heavy: 'Right now I want something dark and heavy — intense, psychologically weighty, and lingering long after it ends. Lean into discomfort and moral murk; avoid light or breezy picks.',
+  mind_melts: 'Right now I want a mind-melter — twisty, puzzle-box, thought-provoking work that rewards close attention and keeps me thinking. Favor ambiguity and clever structure over the straightforward.',
+  date_night: 'Right now I want a date-night pick — broadly appealing, well-paced, and conversation-worthy for two people, without being niche or alienating. Balance quality with easy enjoyment.',
+  group_watch: 'Right now I want a crowd-pleaser for a group — low-friction, broadly accessible, and fun to watch together, nothing that demands total silence or divides the room.',
+  short_sweet: 'Right now I want something short and sweet — low time commitment (ideally around 100 minutes or under for films, or tight/bingeable for series), punchy and economical, no sprawling epics.',
+  cult_polarizing: 'Right now I want something divisive and cult — love-it-or-hate-it, boundary-pushing work with a devoted following. It is fine to stretch beyond my usual comfort zone and recommend polarizing picks.',
+};
+
+function isPresetId(id) {
+  return typeof id === 'string' && Object.prototype.hasOwnProperty.call(PRESET_DIRECTIVES, id);
+}
+
+function getPresetDirective(id) {
+  return PRESET_DIRECTIVES[id] || '';
+}
+
 function normalizeTitle(s) {
   if (!s) return '';
   return String(s)
@@ -404,7 +427,9 @@ Return ONLY valid JSON in this format:
     exclusionBlock += `\n\n${feedbackBlock}`;
   }
 
-  if (type === 'similar') {
+  if (isPresetId(type)) {
+    userPrompt = `${signal}\n\n${getPresetDirective(type)}\n\nRecommend 5 ${contentLabel} that fit this mood while still matching what I love and avoiding what I dislike, explaining why each fits.`;
+  } else if (type === 'similar') {
     userPrompt = `${signal}
 
 Analyze the patterns in my preferences (genre, director, themes, style, era) and especially what I rate highly versus poorly. Recommend 5 ${contentLabel} that match what I love and avoid what I dislike, explaining why each fits my taste.

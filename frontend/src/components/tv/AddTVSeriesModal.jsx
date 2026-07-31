@@ -6,7 +6,7 @@ import { IS_CLOUD } from '../../utils/mode';
 
 const genres = ['Action', 'Comedy', 'Drama', 'Sci-Fi', 'Horror', 'Thriller', 'Romance', 'Animation', 'Documentary', 'Fantasy'];
 
-export default function AddTVSeriesModal({ isOpen, onClose, defaultStatus = 'watched' }) {
+export default function AddTVSeriesModal({ isOpen, onClose, defaultStatus = 'watched', prefill = null }) {
   const { addSeries, updateSeriesStatus } = useTVSeries();
   const initialForm = {
     title: '',
@@ -19,6 +19,7 @@ export default function AddTVSeriesModal({ isOpen, onClose, defaultStatus = 'wat
     release_year: '',
     is_public: true,
     status: defaultStatus,
+    ...(prefill || {}),
   };
   const [formData, setFormData] = useState(initialForm);
   const [isSubmitting, setIsSubmitting] = useState(false);

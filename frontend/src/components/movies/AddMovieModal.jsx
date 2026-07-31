@@ -6,7 +6,7 @@ import { IS_CLOUD } from '../../utils/mode';
 
 const genres = ['Action', 'Comedy', 'Drama', 'Sci-Fi', 'Horror', 'Thriller', 'Romance', 'Animation', 'Documentary', 'Fantasy'];
 
-export default function AddMovieModal({ isOpen, onClose, defaultStatus = 'watched' }) {
+export default function AddMovieModal({ isOpen, onClose, defaultStatus = 'watched', prefill = null }) {
   const { addMovie, updateMovieStatus } = useMovies();
   const initialForm = {
     title: '',
@@ -18,6 +18,7 @@ export default function AddMovieModal({ isOpen, onClose, defaultStatus = 'watche
     release_year: '',
     is_public: true,
     status: defaultStatus,
+    ...(prefill || {}),
   };
   const [formData, setFormData] = useState(initialForm);
   const [isSubmitting, setIsSubmitting] = useState(false);

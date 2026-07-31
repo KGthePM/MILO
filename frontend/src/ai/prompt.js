@@ -1,3 +1,5 @@
+import { isPresetId, getPresetDirective } from '../recommendations/presets';
+
 export function normalizeTitle(s) {
   if (!s) return '';
   return String(s)
@@ -214,7 +216,9 @@ Return ONLY valid JSON in this format:
   }
 
   let userPrompt = '';
-  if (type === 'similar') {
+  if (isPresetId(type)) {
+    userPrompt = `${signal}\n\n${getPresetDirective(type)}\n\nRecommend 5 ${contentLabel} that fit this mood while still matching what I love and avoiding what I dislike, explaining why each fits.`;
+  } else if (type === 'similar') {
     userPrompt = `${signal}
 
 Analyze the patterns in my preferences (genre, director, themes, style, era) and especially what I rate highly versus poorly. Recommend 5 ${contentLabel} that match what I love and avoid what I dislike, explaining why each fits my taste.

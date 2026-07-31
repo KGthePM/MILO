@@ -10,6 +10,9 @@ import { useMovies } from '../../utils/MovieContext';
 import { useTVSeries } from '../../utils/TVSeriesContext';
 import { IS_CLOUD } from '../../utils/mode';
 import { loadAISettings, getActiveKey } from '../../utils/aiSettings';
+import { PRESETS } from '../../recommendations/presets';
+import AddMovieModal from '../movies/AddMovieModal';
+import AddTVSeriesModal from '../tv/AddTVSeriesModal';
 
 function formatWhen(ts) {
   if (!ts) return '';
@@ -45,6 +48,11 @@ export default function EnhancedRecommendations({ contentType = 'movie' }) {
   const [refreshing, setRefreshing] = useState(false);
   const [recommendations, setRecommendations] = useState([]);
   const [filter, setFilter] = useState('all');
+  // Quick Hitters — a selected preset id replaces the similar/hidden_gems type
+  // and travels to the API as the `type` value. null = plain type-based mode.
+  const [activePreset, setActivePreset] = useState(null);
+  // Label of the preset used in the last generation (for the results banner).
+  const [generatedPresetLabel, setGeneratedPresetLabel] = useState(null);
   const [source, setSource] = useState('simple');
   const [message, setMessage] = useState('');
   const [aiErrorMessage, setAiErrorMessage] = useState(null);
@@ -59,6 +67,8 @@ export default function EnhancedRecommendations({ contentType = 'movie' }) {
   // Keyed `${contentType}:${normalizeTitle(title)}` → { feedback, addedId? }.
   const [feedbackMap, setFeedbackMap] = useState({});
   const [feedbackBusy, setFeedbackBusy] = useState(null);
+  // A rec the user marked "Seen it" — opens a prefilled Add modal to log it as watched.
+  const [seenItRec, setSeenItRec] = useState(null);
   const { fetchMovies, deleteMovie } = useMovies();
   const { fetchSeries, deleteSeries } = useTVSeries();
 
@@ -105,13 +115,14 @@ export default function EnhancedRecommendations({ contentType = 'movie' }) {
     try {
       const api = contentType === 'tv' ? tvApi : movieApi;
       const params = {
-        type: filter === 'all' ? 'all' : filter,
+        type: activePreset ?? (filter === 'all' ? 'all' : filter),
         content: contentType,
         refresh: refresh.toString(),
       };
       const effectiveModel = IS_CLOUD ? cloudSettings?.model : selectedModel;
       if (effectiveModel) params.model = effectiveModel;
       const response = await api.getRecommendations(params);
+      setGeneratedPresetLabel(activePreset ? (PRESETS.find((p) => p.id === activePreset)?.label || null) : null);
       setRecommendations(response.recommendations || []);
       setSource(response.source || 'simple');
       setMessage(response.message || '');
@@ -222,6 +233,11 @@ export default function EnhancedRecommendations({ contentType = 'movie' }) {
         }
       }
       setFeedbackMap((m) => ({ ...m, [key]: { feedback: verb, addedId } }));
+
+      // "Seen it" → offer to log it in the watched library (rating required, so
+      // open the prefilled Add modal). Feedback is already recorded above, so the
+      // AI stops recommending it whether or not the user completes the modal.
+      if (verb === 'seen_it') setSeenItRec(rec);
     } catch (e) {
       console.error('Feedback failed:', e);
     } finally {
@@ -252,6 +268,16 @@ export default function EnhancedRecommendations({ contentType = 'movie' }) {
   };
 
   const handleRefresh = () => fetchRecommendations(true);
+
+  // Clicking a chip selects it (or clears it if already active). Selection only —
+  // the user still hits Generate. Reset the filter so preset cards (whose rec.type
+  // is the preset id) aren't hidden by a stale similar/hidden_gems filter.
+  const togglePreset = (id) =>
+    setActivePreset((cur) => {
+      const next = cur === id ? null : id;
+      if (next) setFilter('all');
+      return next;
+    });
 
   const filteredRecommendations = recommendations.filter(rec => {
     if (filter === 'all') return true;
@@ -318,12 +344,35 @@ export default function EnhancedRecommendations({ contentType = 'movie' }) {
         )}
       </div>
 
+      <div className="flex flex-wrap gap-2 mb-4">
+        {PRESETS.map((p) => {
+          const active = activePreset === p.id;
+          return (
+            <button
+              key={p.id}
+              type="button"
+              onClick={() => togglePreset(p.id)}
+              title={p.directive}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-xs font-medium transition-all ${
+                active
+                  ? `bg-${accent}/25 border-${accent}/60 text-white`
+                  : 'bg-black/20 border-white/10 text-white/60 hover:border-white/30 hover:text-white'
+              }`}
+            >
+              <span>{p.emoji}</span>
+              {p.label}
+            </button>
+          );
+        })}
+      </div>
+
       <div className="flex flex-wrap items-center gap-3 mb-4">
         <Filter size={16} className="text-white/50" />
         <select
           value={filter}
-          onChange={(e) => setFilter(e.target.value)}
-          className="bg-black/30 text-white rounded-lg px-3 py-1.5 text-sm border border-white/10 focus:border-white/30 outline-none"
+          onChange={(e) => { setFilter(e.target.value); setActivePreset(null); }}
+          disabled={!!activePreset}
+          className="bg-black/30 text-white rounded-lg px-3 py-1.5 text-sm border border-white/10 focus:border-white/30 outline-none disabled:opacity-50"
         >
           <option value="all">All Recommendations</option>
           <option value="similar">Similar to Favorites</option>
@@ -440,6 +489,9 @@ export default function EnhancedRecommendations({ contentType = 'movie' }) {
             <div className="flex items-center gap-2 mb-4 px-3 py-2 bg-green-500/10 rounded-lg border border-green-500/20">
               <Sparkles size={14} className="text-green-400" />
               <span className="text-green-400 text-sm">AI-Powered</span>
+              {generatedPresetLabel && (
+                <span className="text-green-300/80 text-xs ml-1">· {generatedPresetLabel}</span>
+              )}
               {tasteProfile && (
                 <span className="text-green-300/60 text-xs ml-1">· Powered by your Taste Profile</span>
               )}
@@ -549,6 +601,33 @@ export default function EnhancedRecommendations({ contentType = 'movie' }) {
             )}
           </AnimatePresence>
         </>
+      )}
+
+      {seenItRec && contentType !== 'tv' && (
+        <AddMovieModal
+          key={seenItRec.title}
+          isOpen={true}
+          onClose={() => setSeenItRec(null)}
+          prefill={{
+            title: seenItRec.title,
+            genre: seenItRec.genre || '',
+            release_year: seenItRec.year ? String(seenItRec.year) : '',
+            status: 'watched',
+          }}
+        />
+      )}
+      {seenItRec && contentType === 'tv' && (
+        <AddTVSeriesModal
+          key={seenItRec.title}
+          isOpen={true}
+          onClose={() => setSeenItRec(null)}
+          prefill={{
+            title: seenItRec.title,
+            genre: seenItRec.genre || '',
+            release_year: seenItRec.year ? String(seenItRec.year) : '',
+            status: 'watched',
+          }}
+        />
       )}
     </motion.div>
   );
