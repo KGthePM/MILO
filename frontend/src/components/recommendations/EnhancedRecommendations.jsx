@@ -1,5 +1,5 @@
 import { motion, AnimatePresence } from 'framer-motion';
-import { Sparkles, RefreshCw, Filter, Loader2, AlertCircle, Play, Settings as SettingsIcon, Brain, ThumbsUp, ThumbsDown, EyeOff } from 'lucide-react';
+import { Sparkles, RefreshCw, Filter, Loader2, AlertCircle, Play, Settings as SettingsIcon, Brain, ThumbsUp, ThumbsDown, EyeOff, HelpCircle } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { api as movieApi } from '../../api/movieApi';
 import { tvApi } from '../../api/tvApi';
@@ -13,6 +13,7 @@ import { loadAISettings, getActiveKey } from '../../utils/aiSettings';
 import { PRESETS } from '../../recommendations/presets';
 import AddMovieModal from '../movies/AddMovieModal';
 import AddTVSeriesModal from '../tv/AddTVSeriesModal';
+import AIProvidersHelpModal from '../settings/AIProvidersHelpModal';
 
 function formatWhen(ts) {
   if (!ts) return '';
@@ -37,6 +38,7 @@ function pickBestModel(list) {
 export default function EnhancedRecommendations({ contentType = 'movie' }) {
   const [hasStarted, setHasStarted] = useState(false);
   const [hasGenerated, setHasGenerated] = useState(false);
+  const [isHelpOpen, setIsHelpOpen] = useState(false);
 
   const [modelsLoading, setModelsLoading] = useState(false);
   const [modelsError, setModelsError] = useState(null);
@@ -300,6 +302,14 @@ export default function EnhancedRecommendations({ contentType = 'movie' }) {
           <h2 className={`text-xl font-bold neon-text-${accent}`}>
             Smart Recommendations
           </h2>
+          <button
+            onClick={() => setIsHelpOpen(true)}
+            className="shrink-0 p-1.5 rounded-lg text-white/50 hover:text-neon-cyan hover:bg-white/5 transition-colors"
+            title="How AI providers work"
+            aria-label="How AI providers work"
+          >
+            <HelpCircle size={18} />
+          </button>
         </div>
         <div className="flex flex-col items-center text-center py-8 gap-4">
           <Sparkles size={48} className={`text-${accent} opacity-60`} />
@@ -315,6 +325,7 @@ export default function EnhancedRecommendations({ contentType = 'movie' }) {
             Get Recommendations
           </button>
         </div>
+        <AIProvidersHelpModal isOpen={isHelpOpen} onClose={() => setIsHelpOpen(false)} />
       </motion.div>
     );
   }
@@ -331,6 +342,14 @@ export default function EnhancedRecommendations({ contentType = 'movie' }) {
           <h2 className={`text-xl font-bold neon-text-${accent}`}>
             {contentLabel} Recommendations
           </h2>
+          <button
+            onClick={() => setIsHelpOpen(true)}
+            className="shrink-0 p-1.5 rounded-lg text-white/50 hover:text-neon-cyan hover:bg-white/5 transition-colors"
+            title="How AI providers work"
+            aria-label="How AI providers work"
+          >
+            <HelpCircle size={18} />
+          </button>
         </div>
         {hasGenerated && (
           <button
@@ -629,6 +648,7 @@ export default function EnhancedRecommendations({ contentType = 'movie' }) {
           }}
         />
       )}
+      <AIProvidersHelpModal isOpen={isHelpOpen} onClose={() => setIsHelpOpen(false)} />
     </motion.div>
   );
 }

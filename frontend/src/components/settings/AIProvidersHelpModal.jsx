@@ -1,3 +1,4 @@
+import { createPortal } from 'react-dom';
 import { motion } from 'framer-motion';
 import { HelpCircle, X, ExternalLink, KeyRound, Zap, Server, Boxes, Cpu } from 'lucide-react';
 
@@ -42,7 +43,7 @@ function Section({ icon: Icon, title, children }) {
 export default function AIProvidersHelpModal({ isOpen, onClose }) {
   if (!isOpen) return null;
 
-  return (
+  return createPortal(
     <motion.div
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
@@ -154,6 +155,7 @@ export default function AIProvidersHelpModal({ isOpen, onClose }) {
           </button>
         </div>
       </motion.div>
-    </motion.div>
+    </motion.div>,
+    document.body
   );
 }

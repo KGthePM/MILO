@@ -33,7 +33,7 @@ export default function AppearanceSection() {
       <section>
         <h3 className="text-white font-semibold mb-2">Theme</h3>
         <p className="text-white/60 text-sm mb-3">
-          Light mode is experimental — most pages were designed for dark.
+          Choose how MILO looks. Dark is the default; light works across all pages.
         </p>
         <div className="flex gap-2">
           <button

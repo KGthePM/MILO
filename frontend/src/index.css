@@ -20,6 +20,61 @@ html.light body {
   color: #15151c;
 }
 
+/* -------------------------------------------------------------------------- */
+/* Light mode overrides                                                       */
+/* The UI is built dark-first with hardcoded white-based classes. These rules */
+/* remap those white tokens to a dark ink (#15151c) so text/borders/inputs    */
+/* stay readable on the light background. Scoped entirely to html.light so    */
+/* dark mode is untouched. html.light .foo (0,2,0) outranks Tailwind's        */
+/* single-class utilities (0,1,0), so no !important is needed.                */
+/* -------------------------------------------------------------------------- */
+
+/* Text colors — preserve the muted/full hierarchy of text-white/NN */
+html.light .text-white     { color: #15151c; }
+html.light .text-white\/90 { color: rgba(21, 21, 28, 0.9); }
+html.light .text-white\/80 { color: rgba(21, 21, 28, 0.8); }
+html.light .text-white\/70 { color: rgba(21, 21, 28, 0.7); }
+html.light .text-white\/60 { color: rgba(21, 21, 28, 0.65); }
+html.light .text-white\/50 { color: rgba(21, 21, 28, 0.6); }
+html.light .text-white\/40 { color: rgba(21, 21, 28, 0.55); }
+html.light .text-white\/30 { color: rgba(21, 21, 28, 0.5); }
+html.light .text-white\/25 { color: rgba(21, 21, 28, 0.5); }
+
+/* Glass cards + white borders */
+html.light .glass {
+  background: rgba(255, 255, 255, 0.7);
+  border: 1px solid rgba(21, 21, 28, 0.12);
+  box-shadow: 0 8px 32px rgba(21, 21, 28, 0.08);
+}
+
+html.light .glass:hover {
+  background: rgba(255, 255, 255, 0.85);
+  border-color: rgba(21, 21, 28, 0.2);
+}
+
+html.light [class*="border-white"] {
+  border-color: rgba(21, 21, 28, 0.15);
+}
+
+/* Inputs / selects / textareas */
+html.light input,
+html.light select,
+html.light textarea {
+  background: rgba(21, 21, 28, 0.03);
+  border: 1px solid rgba(21, 21, 28, 0.15);
+  color: #15151c;
+}
+
+html.light input::placeholder,
+html.light textarea::placeholder {
+  color: rgba(21, 21, 28, 0.4);
+}
+
+/* Scrollbar track (cyan thumb reads fine on light) */
+html.light ::-webkit-scrollbar-track {
+  background: rgba(21, 21, 28, 0.06);
+}
+
 .glass {
   background: rgba(255, 255, 255, 0.05);
   backdrop-filter: blur(10px);
