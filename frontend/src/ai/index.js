@@ -4,6 +4,7 @@ import {
   buildLibraryDigest,
   buildTasteAnalysisPrompt,
   parseTasteProfileJSON,
+  formatFeedbackHistoryForAnalysis,
 } from './prompt';
 import * as openrouter from './providers/openrouter';
 import * as anthropic from './providers/anthropic';
@@ -60,6 +61,7 @@ export async function generateRecommendations({
   extraExclusions = [],
   tasteProfile = null,
   feedback = null,
+  sample = false,
   settings = loadAISettings(),
   signal,
 } = {}) {
@@ -67,6 +69,7 @@ export async function generateRecommendations({
     extraExclusions,
     tasteProfile,
     feedback,
+    sample,
   });
   const provider = getProvider(settings.provider);
   return provider.generateRecommendations({
@@ -83,24 +86,32 @@ export async function generateTasteProfile({
   movies = [],
   tvSeries = [],
   feedback = null,
+  feedbackRows = [],
+  priorProfile = null,
   settings = loadAISettings(),
   signal,
 } = {}) {
   const parts = [];
   if (movies.length) parts.push(buildLibraryDigest(movies, 'movies'));
   if (tvSeries.length) parts.push(buildLibraryDigest(tvSeries, 'TV series'));
-  // Reactions to past AI recommendations are taste signal too. Text kept
-  // identical to backend/taste-analyzer.js.
-  const fbInterested = (feedback?.interested || []).slice(0, 15);
-  const fbNotForMe = (feedback?.notForMe || []).slice(0, 15);
-  if (fbInterested.length || fbNotForMe.length) {
-    const fbLines = [];
-    if (fbInterested.length) fbLines.push(`- Added to watchlist (excited me): ${fbInterested.join('; ')}`);
-    if (fbNotForMe.length) fbLines.push(`- Rejected ("not for me"): ${fbNotForMe.join('; ')}`);
-    parts.push(`Feedback I gave on AI recommendations:\n${fbLines.join('\n')}`);
+  // Reactions to past AI recommendations are taste signal too. Raw rows carry
+  // age + wildcard tags so the analyst can infer WHY, not just what; the
+  // grouped-title fallback keeps older callers working.
+  const fbBlock = formatFeedbackHistoryForAnalysis(feedbackRows);
+  if (fbBlock) {
+    parts.push(fbBlock);
+  } else {
+    const fbInterested = (feedback?.interested || []).slice(0, 15);
+    const fbNotForMe = (feedback?.notForMe || []).slice(0, 15);
+    if (fbInterested.length || fbNotForMe.length) {
+      const fbLines = [];
+      if (fbInterested.length) fbLines.push(`- Added to watchlist (excited me): ${fbInterested.join('; ')}`);
+      if (fbNotForMe.length) fbLines.push(`- Rejected ("not for me"): ${fbNotForMe.join('; ')}`);
+      parts.push(`Feedback I gave on AI recommendations:\n${fbLines.join('\n')}`);
+    }
   }
   const digest = parts.join('\n\n') || 'My library is currently empty.';
-  const { systemPrompt, userPrompt } = buildTasteAnalysisPrompt(digest, 'movies & TV');
+  const { systemPrompt, userPrompt } = buildTasteAnalysisPrompt(digest, 'movies & TV', { priorProfile });
   const provider = getProvider(settings.provider);
   if (typeof provider.chat !== 'function') {
     throw new Error(`${settings.provider} does not support taste analysis.`);

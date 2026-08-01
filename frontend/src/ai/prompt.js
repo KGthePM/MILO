@@ -46,7 +46,32 @@ function formatDigestLine(m) {
   return `${m.title} (${bits.join(', ')})${notes ? ` — ${notes}` : ''}`;
 }
 
-export function buildLibraryDigest(userMovies, contentLabel) {
+// Coarse relative age ("3d ago", "2w ago", "5mo ago") — model-legible recency
+// tags for digest and feedback lines. Pending backend backfill.
+export function relativeAge(dateStr, now = Date.now()) {
+  const t = Date.parse(dateStr);
+  if (Number.isNaN(t)) return '';
+  const days = Math.max(0, Math.floor((now - t) / 86400000));
+  if (days < 7) return `${days}d ago`;
+  if (days < 60) return `${Math.floor(days / 7)}w ago`;
+  if (days < 365) return `${Math.floor(days / 30)}mo ago`;
+  return `${Math.floor(days / 365)}y ago`;
+}
+
+// Weighted sample without replacement (exponential-key trick): each item gets
+// key = random^(1/weight); the n largest keys win. Used to vary which corner of
+// the library the digest draws from on refresh. Pending backend backfill.
+export function weightedSample(items, n, weightFn) {
+  if (!Array.isArray(items) || items.length <= n) return [...(items || [])];
+  return items
+    .map((item) => ({ item, key: Math.random() ** (1 / Math.max(1e-6, weightFn(item))) }))
+    .sort((a, b) => b.key - a.key)
+    .slice(0, n)
+    .map((e) => e.item);
+}
+
+export function buildLibraryDigest(userMovies, contentLabel, opts = {}) {
+  const { sample = false, recentDays = 90, now = Date.now() } = opts;
   const rated = userMovies.filter((m) => typeof m.rating === 'number' && !Number.isNaN(m.rating));
   const byRatingDesc = [...rated].sort((a, b) => b.rating - a.rating);
 
@@ -62,7 +87,13 @@ export function buildLibraryDigest(userMovies, contentLabel) {
     dislikedCount = Math.min(dislikedCount, Math.floor(n / 2));
     lovedCount = Math.min(lovedCount, n - dislikedCount);
   }
-  const loved = byRatingDesc.slice(0, lovedCount);
+  // On refresh, sample the loved block (weighted toward high ratings) from the
+  // whole non-disliked pool instead of the fixed top-N, so consecutive
+  // generations draw from different corners of the library. First generation
+  // stays deterministic.
+  const loved = sample
+    ? weightedSample(byRatingDesc.slice(0, n - dislikedCount), lovedCount, (m) => Math.max(1, m.rating - 5)).sort((a, b) => b.rating - a.rating)
+    : byRatingDesc.slice(0, lovedCount);
   const lovedBlock = loved.map((m) => `- ${formatDigestLine(m)}`).join('\n');
 
   let dislikedBlock = '';
@@ -107,10 +138,35 @@ export function buildLibraryDigest(userMovies, contentLabel) {
     .map(([d, c]) => `${d} (${c})`)
     .join(', ');
 
+  // Recency section: what the user watched lately is their taste RIGHT NOW and
+  // should outweigh older history. Kept deterministic even when sampling.
+  const withDate = (m) => m.date_watched || m.created_at || '';
+  const recentCutoff = now - recentDays * 86400000;
+  const recentRated = rated
+    .filter((m) => {
+      const t = Date.parse(withDate(m));
+      return !Number.isNaN(t) && t >= recentCutoff;
+    })
+    .sort((a, b) => String(withDate(b)).localeCompare(String(withDate(a))));
+  const recentFavs = recentRated.filter((m) => m.rating >= 7).slice(0, 10);
+  const recentMisses = recentRated.filter((m) => m.rating <= 5).slice(0, 5);
+  let recentBlock = '';
+  if (recentFavs.length) {
+    recentBlock += `\n\nRecent favorites (last ${recentDays} days — my taste RIGHT NOW; weight these more heavily than older history):\n${recentFavs
+      .map((m) => `- ${formatDigestLine(m)} — watched ${relativeAge(withDate(m), now)}`)
+      .join('\n')}`;
+  }
+  if (recentMisses.length) {
+    recentBlock += `\n\nRecent misses (last ${recentDays} days — lately these did NOT work for me):\n${recentMisses
+      .map((m) => `- ${formatDigestLine(m)} — watched ${relativeAge(withDate(m), now)}`)
+      .join('\n')}`;
+  }
+
   let digest = `Here is a digest of my ${contentLabel} library.\n\nLoved (my highest-rated):\n${lovedBlock}`;
   if (dislikedBlock) {
     digest += `\n\nDisliked (my lowest-rated — steer away from anything like these):\n${dislikedBlock}`;
   }
+  digest += recentBlock;
   if (genreLines) digest += `\n\nGenre distribution (count + average rating — high averages are what I truly love):\n- ${genreLines}`;
   if (directorLine) digest += `\n\nDirectors I return to: ${directorLine}`;
   if (eraLine) digest += `\n\nEras I watch (by release decade): ${eraLine}`;
@@ -140,11 +196,45 @@ export function formatRecFeedbackForPrompt(feedback) {
   return `I have reacted to past AI recommendations — use this as a strong signal:\n${lines.join('\n')}`;
 }
 
+// Wildcard recs are tagged in rec_feedback.rec_type as `wildcard:<recType>` so
+// the taste analyst can learn whether the user rewards stretch picks.
+export function isWildcardFeedback(row) {
+  return /^wildcard(:|$)/.test(row?.rec_type || '');
+}
+
+// Raw rec_feedback rows → an age-tagged reaction history for taste analysis.
+// Richer than the grouped title lists used in the rec prompt: the analyst is
+// asked to contrast accepts vs rejects to infer WHY. Rows are expected most
+// recent first. Pending backend backfill.
+export function formatFeedbackHistoryForAnalysis(rows, { now = Date.now(), cap = 40 } = {}) {
+  const verbs = { interested: 'Interested', not_for_me: 'Not for me', seen_it: 'Seen it' };
+  const usable = (rows || []).filter((r) => r && r.title && verbs[r.feedback]).slice(0, cap);
+  if (!usable.length) return '';
+  const lines = usable.map((r) => {
+    const bits = [];
+    if (r.genre) bits.push(r.genre);
+    if (r.year) bits.push(String(r.year));
+    if (r.content_type === 'tv') bits.push('TV');
+    const age = relativeAge(r.created_at || r.updated_at, now);
+    if (age) bits.push(age);
+    if (isWildcardFeedback(r)) bits.push('wildcard');
+    return `- ${verbs[r.feedback]}: ${r.title}${bits.length ? ` (${bits.join(', ')})` : ''}`;
+  });
+  let block = `My reactions to past AI recommendations (most recent first — recent reactions carry the most signal; "wildcard" marks a deliberate stretch pick outside my core taste):\n${lines.join('\n')}`;
+  const wildcards = usable.filter(isWildcardFeedback);
+  if (wildcards.length) {
+    const wcIn = wildcards.filter((r) => r.feedback === 'interested').length;
+    const wcOut = wildcards.filter((r) => r.feedback === 'not_for_me').length;
+    block += `\n\nWildcard (stretch) picks I reacted to: ${wcIn} interested, ${wcOut} rejected.`;
+  }
+  return block;
+}
+
 export function buildRecommendationPrompt(userMovies, type, contentType, options = {}) {
   const contentLabel = contentType === 'tv' ? 'TV series' : 'movies';
   const extraExclusions = Array.isArray(options.extraExclusions) ? options.extraExclusions : [];
 
-  const systemPrompt = `You are a ${contentLabel} recommendation expert. Analyze the user's viewing history and provide personalized recommendations.
+  let systemPrompt = `You are a ${contentLabel} recommendation expert. Analyze the user's viewing history and provide personalized recommendations.
 
 Never recommend a title the user has already watched.
 
@@ -156,7 +246,8 @@ Return ONLY valid JSON in this format:
       "year": "number",
       "genre": "string",
       "explanation": "brief explanation (50-100 words)",
-      "confidence": 1-10
+      "confidence": 1-10,
+      "wildcard": true (only on the one wildcard pick)
     }
   ]
 }`;
@@ -168,20 +259,25 @@ Return ONLY valid JSON in this format:
     };
   }
 
+  systemPrompt += `
+
+Exactly one of the recommendations — the LAST one — must be a WILDCARD: a deliberate stretch pick adjacent to the user's taste, not squarely inside it (an under-explored genre, era, country, or style one step beyond their comfort zone). It must never contradict their hard dislikes or rejection patterns, and never be something they've watched or rejected. Mark it with "wildcard": true and make its explanation say explicitly why this stretch is worth their time.`;
+
   // When a saved taste profile is present, lead with its distilled read plus a
   // condensed "loved" grounding instead of double-sending the full digest.
+  // On refresh, sample the grounding (weighted toward high ratings) so
+  // consecutive regenerations don't converge on the same picks.
   const profileText = formatTasteProfileForPrompt(options.tasteProfile);
   let signal;
   if (profileText) {
-    const topLoved = [...userMovies]
-      .filter((m) => typeof m.rating === 'number' && !Number.isNaN(m.rating))
-      .sort((a, b) => b.rating - a.rating)
-      .slice(0, 8)
-      .map((m) => `- ${formatDigestLine(m)}`)
-      .join('\n');
+    const ratedAll = [...userMovies].filter((m) => typeof m.rating === 'number' && !Number.isNaN(m.rating));
+    const lovedItems = options.sample
+      ? weightedSample(ratedAll, 8, (m) => Math.max(1, m.rating - 5)).sort((a, b) => b.rating - a.rating)
+      : ratedAll.sort((a, b) => b.rating - a.rating).slice(0, 8);
+    const topLoved = lovedItems.map((m) => `- ${formatDigestLine(m)}`).join('\n');
     signal = `${profileText}${topLoved ? `\n\nA few of my highest-rated ${contentLabel} for grounding:\n${topLoved}` : ''}`;
   } else {
-    signal = buildLibraryDigest(userMovies, contentLabel);
+    signal = buildLibraryDigest(userMovies, contentLabel, { sample: !!options.sample });
   }
 
   const watchedSorted = [...userMovies]
@@ -252,7 +348,7 @@ For each, explain why it's a hidden gem that fits my taste perfectly.`;
 // are mirrored verbatim in backend/ollama-recommender.js. Keep the two in sync.
 // ---------------------------------------------------------------------------
 
-export function buildTasteAnalysisPrompt(digest, contentLabel = 'movies & TV') {
+export function buildTasteAnalysisPrompt(digest, contentLabel = 'movies & TV', options = {}) {
   const systemPrompt = `You are a film and television taste analyst. Study the user's library digest and compile a concise, structured profile of their taste.
 
 Base every field strictly on the evidence in the digest — especially what they rate highly versus poorly. Do not invent facts. Be specific and vivid, not generic.
@@ -269,19 +365,55 @@ Return ONLY valid JSON in this exact shape:
   "dislikes": ["string"],
   "patterns": ["string"],
   "hiddenGemAffinity": "string",
-  "movieVsTV": "string"
+  "movieVsTV": "string",
+  "insights": ["2-5 meta-patterns explaining WHY they accept or reject things, e.g. 'loves high-concept sci-fi but rejects slow-paced entries'"],
+  "dislikePatterns": ["recurring traits of what they reject or rate poorly"],
+  "recentShift": "1 sentence on how their taste has moved lately, or null if stable",
+  "explorationAppetite": "high | medium | low — plus one short clause of rationale"
 }`;
 
-  const userPrompt = `${digest}
+  let userPrompt = `${digest}
 
 Analyze my ${contentLabel} taste and return the JSON profile described. Focus on:
 - What my highest-rated titles and highest-average-rated genres reveal about what I love
 - What my lowest-rated titles reveal about what to steer away from (dislikes)
 - Recurring themes, styles, directors, and eras
 - Patterns (e.g. rating auteur work above box-office hits) and any hidden-gem affinity
-- How my movie taste compares to my TV taste`;
+- How my movie taste compares to my TV taste
+- insights: infer WHY I accept or reject things, not just what — contrast titles I reacted "Interested" to against "Not for me" ones, especially within the same genre
+- dislikePatterns: what my rejections and low ratings have in common
+- Weight my recent watches and recent reactions more heavily than older history — they reflect my taste right now
+- explorationAppetite: judge from how I react to wildcard (stretch) picks versus safe ones how adventurous my recommendations should be; default to "medium" if there is little evidence`;
+
+  const prior = options.priorProfile;
+  if (prior && (prior.persona || prior.summary)) {
+    const when = prior.generatedAt ? ` (compiled ${relativeAge(prior.generatedAt)})` : '';
+    const priorLines = [
+      prior.persona ? `Persona: ${prior.persona}` : '',
+      prior.summary ? `Summary: ${prior.summary}` : '',
+      prior.recentShift ? `Previous shift noted: ${prior.recentShift}` : '',
+    ].filter(Boolean);
+    userPrompt += `
+
+For drift detection, my PREVIOUS taste profile${when}:
+${priorLines.join('\n')}
+
+Compare my recent activity against this previous read. If my taste has genuinely moved (new genres, moods, eras I'm gravitating to or away from), describe the shift concretely in "recentShift"; if it is stable, set "recentShift" to null. Do not invent a shift.`;
+  }
 
   return { systemPrompt, userPrompt };
+}
+
+// Compact snapshot of a profile for drift prompting + the history[] trail kept
+// inside profile_json (no separate table). Pending backend backfill.
+export function compactProfileSnapshot(profile, generatedAt = null) {
+  if (!profile || typeof profile !== 'object') return null;
+  const snap = {};
+  if (profile.persona) snap.persona = profile.persona;
+  if (profile.summary) snap.summary = profile.summary;
+  if (profile.recentShift) snap.recentShift = profile.recentShift;
+  if (generatedAt) snap.generatedAt = generatedAt;
+  return snap.persona || snap.summary ? snap : null;
 }
 
 export function parseTasteProfileJSON(text) {
@@ -337,6 +469,14 @@ export function formatTasteProfileForPrompt(profile) {
     lines.push(`Patterns: ${profile.patterns.join('; ')}`);
   if (profile.hiddenGemAffinity) lines.push(`Hidden-gem affinity: ${profile.hiddenGemAffinity}`);
   if (profile.movieVsTV) lines.push(`Movie vs TV: ${profile.movieVsTV}`);
+  if (Array.isArray(profile.insights) && profile.insights.length)
+    lines.push(`Inferred insights (WHY they accept/reject — honor these over surface genre matching): ${profile.insights.join('; ')}`);
+  if (Array.isArray(profile.dislikePatterns) && profile.dislikePatterns.length)
+    lines.push(`Rejection patterns (avoid recommending anything with these traits): ${profile.dislikePatterns.join('; ')}`);
+  if (profile.recentShift)
+    lines.push(`Recent taste shift: ${profile.recentShift} — lean into this current direction for at least one pick.`);
+  if (profile.explorationAppetite)
+    lines.push(`Exploration appetite: ${profile.explorationAppetite} (high = make the wildcard genuinely bold — distant genres/eras; low = keep the wildcard a near-adjacent stretch).`);
   if (!lines.length) return '';
   return `Here is my saved taste profile (a distilled read of my library — treat it as the primary guide):\n${lines.join('\n')}`;
 }

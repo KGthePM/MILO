@@ -3,7 +3,6 @@ import { DEFAULT_GENRE_COLORS } from './genreColors';
 const STORAGE_KEY = 'milo.userPrefs.v1';
 
 const DEFAULTS = {
-  theme: 'dark',
   genreColors: {},
 };
 

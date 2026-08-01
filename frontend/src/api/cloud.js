@@ -4,7 +4,7 @@ import {
   listModels as aiListModels,
   generateTasteProfile as aiGenerateTasteProfile,
 } from '../ai';
-import { normalizeTitle, hashLibrary } from '../ai/prompt';
+import { normalizeTitle, hashLibrary, compactProfileSnapshot } from '../ai/prompt';
 import { loadAISettings } from '../utils/aiSettings';
 import { parseLetterboxdCSV, processLetterboxdRows } from './letterboxdClient';
 import { parseMiloDb, processDbRows } from './dbClient';
@@ -44,6 +44,35 @@ function profileSignature(movies = [], tvSeries = []) {
   const all = [...movies, ...tvSeries];
   if (all.length === 0) return '0:';
   return `${all.length}:${hashLibrary(all)}`;
+}
+
+// Auto-refresh thresholds: the taste profile is regenerated (one extra AI call,
+// only inside the Generate flow) once the library or feedback has changed
+// enough to matter. First-ever profile creation stays manual.
+const AUTO_REFRESH_MIN_COUNT_DELTA = 5;
+const AUTO_REFRESH_MIN_NEW_FEEDBACK = 5;
+const AUTO_REFRESH_MAX_AGE_DAYS = 14;
+// One auto-refresh attempt per library-state per session — set before the AI
+// call so a failing key doesn't burn a taste-analysis call on every Generate.
+let autoRefreshTriedFor = null;
+
+function shouldAutoRefreshProfile({ row, movies, tvSeries, feedbackRows, now = Date.now() }) {
+  if (!row?.profile_json || !row.generated_at) return { refresh: false, reason: null };
+  const currentSig = profileSignature(movies, tvSeries);
+  const stale = row.library_signature !== currentSig;
+  // The signature format is `${count}:${hash}` — parseInt reads the count prefix.
+  const priorCount = parseInt(row.library_signature, 10) || 0;
+  const countDelta = Math.abs(movies.length + tvSeries.length - priorCount);
+  const generatedAtMs = Date.parse(row.generated_at) || 0;
+  const newFeedback = (feedbackRows || []).filter(
+    (r) => (Date.parse(r.created_at || r.updated_at) || 0) > generatedAtMs
+  ).length;
+  const ageDays = (now - generatedAtMs) / 86400000;
+  if (stale && countDelta >= AUTO_REFRESH_MIN_COUNT_DELTA) return { refresh: true, reason: 'library-growth' };
+  // Feedback never changes the library signature, so it needs its own trigger.
+  if (newFeedback >= AUTO_REFRESH_MIN_NEW_FEEDBACK) return { refresh: true, reason: 'feedback' };
+  if (stale && ageDays >= AUTO_REFRESH_MAX_AGE_DAYS) return { refresh: true, reason: 'age' };
+  return { refresh: false, reason: null };
 }
 
 const FEEDBACK_TABLE = 'rec_feedback';
@@ -217,9 +246,12 @@ export const movieApi = {
   },
 
   async getRecommendations(params = {}) {
-    const { type = 'all', content = 'movie', model } = params;
+    const { type = 'all', content = 'movie', model, refresh } = params;
     const settings = loadAISettings();
     if (model) settings.model = model;
+    // On refresh, sample the digest/grounding so regenerations draw from
+    // different corners of the library; first generation stays deterministic.
+    const sample = refresh === true || refresh === 'true';
 
     const contentTypes = content === 'all' ? ['movie', 'tv'] : [content];
     const recTypes = type === 'all' ? ['similar', 'hidden_gems'] : [type];
@@ -250,6 +282,7 @@ export const movieApi = {
             extraExclusions: recentlyRecommended.get(recentKey) || [],
             tasteProfile,
             feedback,
+            sample,
             settings,
           });
           const watchedSet = new Set(rowsByType[ct].map((r) => normalizeTitle(r.title)));
@@ -407,33 +440,106 @@ export const tasteApi = {
       throw new Error('Add some watched titles before analyzing your taste.');
     }
 
-    let feedback = null;
+    let feedbackRows = [];
     try {
-      feedback = groupFeedback(await listFeedbackRows());
+      feedbackRows = await listFeedbackRows();
     } catch (e) {
       console.error('Failed to load rec feedback:', e.message);
     }
 
-    const profile = await aiGenerateTasteProfile({ movies, tvSeries, feedback, settings });
-    const signature = profileSignature(movies, tvSeries);
+    let prior = null;
+    try {
+      const { data } = await sb
+        .from(TASTE_TABLE)
+        .select('profile_json, generated_at')
+        .eq('user_id', user_id)
+        .eq('scope', 'all')
+        .maybeSingle();
+      prior = data || null;
+    } catch { /* no prior profile — fine */ }
 
-    const { error } = await sb.from(TASTE_TABLE).upsert(
-      {
-        user_id,
-        scope: 'all',
-        profile_json: profile,
-        library_signature: signature,
-        model: settings.model,
-        generated_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      },
-      { onConflict: 'user_id,scope' }
-    );
-    if (error) throw new Error(error.message);
+    return generateAndSaveProfile({ sb, user_id, settings, movies, tvSeries, feedbackRows, prior });
+  },
 
-    return { profile, model: settings.model, signature, generatedAt: new Date().toISOString(), stale: false };
+  // Called from the Generate flow (cloud only): regenerate the profile when the
+  // library/feedback has changed enough, at most once per state per session.
+  // Never throws — a failed refresh must not block recommendations.
+  async maybeRefreshProfile({ model = null } = {}) {
+    try {
+      const sb = getSupabase();
+      const user_id = await requireUserId();
+      const { data: row } = await sb
+        .from(TASTE_TABLE)
+        .select('profile_json, library_signature, generated_at')
+        .eq('user_id', user_id)
+        .eq('scope', 'all')
+        .maybeSingle();
+      if (!row?.profile_json) return { refreshed: false, reason: null };
+
+      const [movies, tvSeries] = await Promise.all([
+        listRows({ type: 'movie', status: 'watched' }),
+        listRows({ type: 'tv', status: 'watched' }),
+      ]);
+      let feedbackRows = [];
+      try {
+        feedbackRows = await listFeedbackRows();
+      } catch { /* non-fatal */ }
+
+      const { refresh, reason } = shouldAutoRefreshProfile({ row, movies, tvSeries, feedbackRows });
+      if (!refresh) return { refreshed: false, reason: null };
+
+      const guardKey = `${profileSignature(movies, tvSeries)}|${feedbackRows.length}`;
+      if (autoRefreshTriedFor === guardKey) return { refreshed: false, reason: null };
+      autoRefreshTriedFor = guardKey;
+
+      const settings = loadAISettings();
+      if (model) settings.model = model;
+      const res = await generateAndSaveProfile({
+        sb, user_id, settings, movies, tvSeries, feedbackRows,
+        prior: { profile_json: row.profile_json, generated_at: row.generated_at },
+      });
+      return { refreshed: true, reason, profile: res.profile, generatedAt: res.generatedAt };
+    } catch (e) {
+      console.error('Auto taste refresh failed:', e.message);
+      return { refreshed: false, reason: null, error: e.message };
+    }
   },
 };
+
+// Shared by manual analyze + auto-refresh: run taste analysis with the raw
+// feedback rows and prior profile (for drift), attach the history trail, upsert.
+async function generateAndSaveProfile({ sb, user_id, settings, movies, tvSeries, feedbackRows, prior }) {
+  const profile = await aiGenerateTasteProfile({
+    movies,
+    tvSeries,
+    feedbackRows,
+    priorProfile: prior ? compactProfileSnapshot(prior.profile_json, prior.generated_at) : null,
+    settings,
+  });
+  profile.profileVersion = 2;
+  if (prior?.profile_json) {
+    const snap = compactProfileSnapshot(prior.profile_json, prior.generated_at);
+    const oldHistory = Array.isArray(prior.profile_json.history) ? prior.profile_json.history : [];
+    if (snap) profile.history = [snap, ...oldHistory].slice(0, 3);
+  }
+  const signature = profileSignature(movies, tvSeries);
+  const nowIso = new Date().toISOString();
+  const { error } = await sb.from(TASTE_TABLE).upsert(
+    {
+      user_id,
+      scope: 'all',
+      profile_json: profile,
+      library_signature: signature,
+      model: settings.model,
+      generated_at: nowIso,
+      updated_at: nowIso,
+    },
+    { onConflict: 'user_id,scope' }
+  );
+  if (error) throw new Error(error.message);
+
+  return { profile, model: settings.model, signature, generatedAt: nowIso, stale: false };
+}
 
 // Feedback on AI recommendation cards — the durable personalization layer.
 // One row per (user, normalized title, content type); re-reacting upserts.

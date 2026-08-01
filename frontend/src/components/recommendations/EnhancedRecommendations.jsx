@@ -64,6 +64,9 @@ export default function EnhancedRecommendations({ contentType = 'movie' }) {
   const [tasteMeta, setTasteMeta] = useState(null); // { generatedAt, stale }
   const [tasteLoading, setTasteLoading] = useState(false);
   const [tasteError, setTasteError] = useState(null);
+  // Living taste memory: the profile silently refreshes inside the Generate
+  // flow when the library/feedback has changed enough (cloud only).
+  const [autoRefreshing, setAutoRefreshing] = useState(false);
 
   // Feedback on rec cards — durable personalization layer (cloud-first for now).
   // Keyed `${contentType}:${normalizeTitle(title)}` → { feedback, addedId? }.
@@ -212,7 +215,9 @@ export default function EnhancedRecommendations({ contentType = 'movie' }) {
         feedback: verb,
         year: rec.year ? Number(rec.year) || null : null,
         genre: rec.genre || null,
-        recType: rec.type || null,
+        // Wildcard reactions are tagged so taste analysis can learn the user's
+        // exploration appetite; the underlying rec type rides after the colon.
+        recType: rec.wildcard ? `wildcard:${rec.type || ''}` : (rec.type || null),
         model: (IS_CLOUD ? cloudSettings?.model : selectedModel) || null,
       });
       await removeAdded();
@@ -264,8 +269,22 @@ export default function EnhancedRecommendations({ contentType = 'movie' }) {
 
   const handleStart = () => setHasStarted(true);
 
-  const handleGenerate = () => {
+  const handleGenerate = async () => {
     setHasGenerated(true);
+    // Refresh the taste profile first (when warranted) so the rec call that
+    // follows reads the fresh one. Never blocks recs — failures fall through.
+    if (IS_CLOUD && cloudReady && tasteProfile) {
+      setAutoRefreshing(true);
+      try {
+        const r = await tasteApi.maybeRefreshProfile({ model: cloudSettings?.model || null });
+        if (r?.refreshed) {
+          setTasteProfile(r.profile || null);
+          setTasteMeta({ generatedAt: r.generatedAt, stale: false });
+        }
+      } catch { /* never block recs */ } finally {
+        setAutoRefreshing(false);
+      }
+    }
     fetchRecommendations(false);
   };
 
@@ -434,12 +453,18 @@ export default function EnhancedRecommendations({ contentType = 'movie' }) {
             <Brain size={16} className={`text-${accent} shrink-0`} />
             <div className="min-w-0">
               <p className="text-white/80 text-sm font-medium">Taste Analysis</p>
-              {tasteLoading ? (
-                <p className="text-white/40 text-xs">Compiling your taste profile…</p>
+              {tasteLoading || autoRefreshing ? (
+                <p className="text-white/40 text-xs">
+                  {autoRefreshing ? 'MILO is updating its read of your taste…' : 'Compiling your taste profile…'}
+                </p>
               ) : tasteProfile ? (
                 <p className="text-white/40 text-xs truncate">
                   Profile ready{tasteMeta?.generatedAt ? ` · ${formatWhen(tasteMeta.generatedAt)}` : ''}
-                  {tasteMeta?.stale ? ' · library changed — consider re-analyzing' : ''}
+                  {tasteMeta?.stale
+                    ? IS_CLOUD
+                      ? ' · library changed — MILO will refresh on your next Generate'
+                      : ' · library changed — consider re-analyzing'
+                    : ''}
                 </p>
               ) : (
                 <p className="text-white/40 text-xs">Compile a read of your taste to sharpen recs & MILO chat.</p>
@@ -457,6 +482,11 @@ export default function EnhancedRecommendations({ contentType = 'movie' }) {
         </div>
         {tasteProfile?.persona && !tasteLoading && (
           <p className="text-white/50 text-xs mt-2 leading-relaxed">{tasteProfile.persona}</p>
+        )}
+        {tasteProfile?.recentShift && !tasteLoading && (
+          <p className="text-white/50 text-xs mt-1 leading-relaxed">
+            <span className={`text-${accent} font-medium`}>MILO noticed:</span> {tasteProfile.recentShift}
+          </p>
         )}
         {tasteError && (
           <p className="text-red-400 text-xs mt-2 font-mono break-all">{tasteError}</p>
@@ -557,7 +587,17 @@ export default function EnhancedRecommendations({ contentType = 'movie' }) {
                   >
                     <div className="flex items-start justify-between mb-2">
                       <div>
-                        <h3 className="font-semibold text-white">{rec.title}</h3>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <h3 className="font-semibold text-white">{rec.title}</h3>
+                          {rec.wildcard && (
+                            <span
+                              className="text-xs px-2 py-0.5 rounded-full bg-purple-500/20 border border-purple-500/40 text-purple-300"
+                              title="A deliberate stretch pick — one step outside your usual taste"
+                            >
+                              🎲 Wildcard
+                            </span>
+                          )}
+                        </div>
                         <div className="flex items-center gap-2 mt-1">
                           {rec.year && <span className="text-white/50 text-sm">{rec.year}</span>}
                           {rec.genre && (

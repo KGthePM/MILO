@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { RotateCcw, Sun, Moon } from 'lucide-react';
+import { RotateCcw } from 'lucide-react';
 import { loadUserPrefs, saveUserPrefs } from '../../utils/userPrefs';
 import { DEFAULT_GENRE_COLORS, GENRE_LIST } from '../../utils/genreColors';
 
@@ -10,8 +10,6 @@ export default function AppearanceSection() {
     setPrefs(next);
     saveUserPrefs(next);
   };
-
-  const setTheme = (theme) => update({ ...prefs, theme });
 
   const setGenreColor = (genre, color) => {
     update({
@@ -30,35 +28,6 @@ export default function AppearanceSection() {
 
   return (
     <div className="space-y-8 max-w-2xl">
-      <section>
-        <h3 className="text-white font-semibold mb-2">Theme</h3>
-        <p className="text-white/60 text-sm mb-3">
-          Choose how MILO looks. Dark is the default; light works across all pages.
-        </p>
-        <div className="flex gap-2">
-          <button
-            onClick={() => setTheme('dark')}
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg border transition-all ${
-              prefs.theme === 'dark'
-                ? 'bg-cyan-500/20 border-cyan-500/40 text-white'
-                : 'bg-black/30 border-white/10 text-white/60 hover:text-white'
-            }`}
-          >
-            <Moon size={16} /> Dark
-          </button>
-          <button
-            onClick={() => setTheme('light')}
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg border transition-all ${
-              prefs.theme === 'light'
-                ? 'bg-cyan-500/20 border-cyan-500/40 text-white'
-                : 'bg-black/30 border-white/10 text-white/60 hover:text-white'
-            }`}
-          >
-            <Sun size={16} /> Light
-          </button>
-        </div>
-      </section>
-
       <section>
         <div className="flex items-center justify-between mb-2">
           <h3 className="text-white font-semibold">Genre glow colors</h3>
