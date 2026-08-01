@@ -8,6 +8,7 @@ import EditTVSeriesModal from '../components/tv/EditTVSeriesModal';
 import SearchFilter from '../components/shared/SearchFilter';
 import GenreFilter from '../components/shared/GenreFilter';
 import TVRecommendations from '../components/tv/TVRecommendations';
+import TVTimeline from '../components/tv/TVTimeline';
 import Stats from '../components/shared/Stats';
 import FloatingCommandBar from '../components/shared/FloatingCommandBar';
 
@@ -173,6 +174,9 @@ function TVSeriesPageContent() {
           </div>
         );
 
+      case 'timeline':
+        return <TVTimeline series={watchedSeries} onEdit={handleEdit} />;
+
       case 'recommendations':
         return (
           <div className="space-y-6">
@@ -254,6 +258,16 @@ function TVSeriesPageContent() {
               }`}
             >
               To Watch
+            </button>
+            <button
+              onClick={() => setActiveTab('timeline')}
+              className={`flex-1 px-4 py-2 sm:px-6 sm:py-3 rounded-lg font-medium text-sm sm:text-base transition-all ${
+                activeTab === 'timeline'
+                  ? 'bg-gradient-to-r from-neon-magenta/20 to-neon-purple/20 text-neon-magenta neon-border-magenta'
+                  : 'text-white/70 hover:text-white hover:bg-white/5'
+              }`}
+            >
+              Timeline
             </button>
             <button
               onClick={() => setActiveTab('recommendations')}

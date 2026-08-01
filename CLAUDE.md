@@ -2,61 +2,85 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+> A parallel `AGENTS.md` covers the same ground in more detail; keep the two in sync when either changes.
+
 ## Project Overview
 
-**MILO** — a movie and TV tracking dashboard. Ships in two modes:
+**MILO** — a movie and TV tracking dashboard. One React frontend, two data/AI backends selected at **build time** via `VITE_MILO_MODE=local|cloud` (default `local`):
 
-- **Local mode** (default): React frontend + Express/SQLite backend, Ollama-only AI, single user.
-- **Cloud mode**: same React app talks to Supabase (Postgres + Auth) for CRUD and calls LLM providers **directly from the browser** using user-supplied API keys (BYOK). No backend AI inference, no server-side secrets.
-
-Mode is chosen at build time via `VITE_MILO_MODE=local|cloud`. Both modes ship from one codebase.
+- **Local mode**: React frontend + Express 5 / SQLite backend, Ollama-only AI, single user.
+- **Cloud mode**: same React app talks to Supabase (Postgres + Auth) for CRUD and calls LLM providers **directly from the browser** with user-supplied API keys (BYOK). No backend AI inference, no server-side secrets. Cloud build deploys to Netlify (`frontend/netlify.toml`, SPA fallback → `/index.html`).
 
 ## Running the App
 
-Start both servers together:
+Start scripts auto-install deps on first run and launch both servers (both bind `0.0.0.0`):
 ```bash
 ./start.sh        # Linux/macOS
 start.bat         # Windows
 ```
 
-Or separately:
+Manual (two terminals):
 ```bash
-# Terminal 1
 cd backend && node server.js      # http://localhost:3000
-
-# Terminal 2
-cd frontend && npm run dev        # http://localhost:5173
+cd frontend && npm run dev         # http://localhost:5173
 ```
 
-Install dependencies after cloning:
-```bash
-cd backend && npm install
-cd ../frontend && npm install
-```
+Frontend production build: `cd frontend && npm run build` → `dist/`.
 
-## Architecture
+## Dual-Mode Switching
 
-**Single SQLite table** (`movies.db` in project root) stores both movies and TV series, distinguished by a `type` column (`'movie'` | `'tv'`). Schema: `id, title, rating (REAL 1-10), genre, date_watched, notes, director, type, num_seasons, total_episodes, created_at`.
+- `frontend/src/utils/mode.js` exports `IS_CLOUD` / `IS_LOCAL` from `import.meta.env.VITE_MILO_MODE`.
+- API clients (`movieApi.js`, `tvApi.js`, `assistantApi.js`, `tasteApi.js`, `feedbackApi.js`) are **switchers**: `await import('./cloud')` if `IS_CLOUD`, else the `./*.local.js` variant (relative `/api` fetches).
+- `cloud.js` calls Supabase directly from the browser; `*.local.js` hit the Express backend through the Vite `/api` proxy (`vite.config.js`: `/api` → `http://localhost:3000`).
+- `friendsApi.js` / `FriendsContext.jsx` are **cloud-only** (profiles, friend requests, friends' libraries) — no `.local.js` variant.
+- In cloud mode the backend is entirely unused; `AuthGate.jsx` wraps the app with Supabase email/password auth (a no-op in local mode).
 
-`backend/database.js` auto-creates the DB and runs migrations on startup — it detects missing columns and rebuilds the table via rename if needed.
+## Database — Local Mode (SQLite)
 
-**API routing**: Vite dev server proxies `/api/*` → `http://localhost:3000`. The frontend `api/movieApi.js` always uses relative `/api` paths, so no env vars are needed for local dev. The `/api/movies` endpoint accepts a `type` query param to filter by content type; `/api/tv` is a convenience alias for TV-only queries.
+`movies.db` in repo root, auto-created + auto-migrated on backend startup (`backend/database.js`; gitignored).
 
-**State management**: `frontend/src/utils/MovieContext.jsx` (movies) and a parallel TV context provide app-wide state via React Context. Components consume these via hooks rather than fetching directly.
+`movies` columns: `id, title, rating (REAL 1-10), genre, date_watched, notes, director, release_year, type ('movie'|'tv'), num_seasons, total_episodes, status (default 'watched'), created_at`. The `type` column distinguishes movies/TV in one table.
 
-**AI Recommendations**: `backend/ollama-recommender.js` calls a local Ollama instance (`http://localhost:11434` by default) with a 24-hour in-memory cache keyed by model. The frontend fetches the available model list from `/api/ollama/models` (embedding models filtered out) and the user picks one via the UI before clicking **Generate**. There is no hardcoded model default — if `OLLAMA_MODEL` env var is unset and no model is passed in the request, the backend errors loudly. On any Ollama failure (model not pulled, service down, etc.), the route returns a `simple` source with the raw Ollama error in `aiErrorMessage` so the frontend can display it.
+Extra tables (also auto-created, idempotent):
+- `taste_profiles` — one row per `scope` (`'all'` = unified movies+TV); persisted AI taste profile.
+- `rec_feedback` — per-title reaction to a recommendation; unique on `(normalized_title, content_type)`; feedback ∈ `interested|not_for_me|seen_it`.
 
-## Cloud mode
+`migrateDatabase()` detects missing columns / NOT NULL constraints and rebuilds via a `movies_new` copy + rename; also runs `recoverTvTypes()` (rows with seasons/episodes but `type='movie'` → `'tv'`).
 
-When `VITE_MILO_MODE=cloud`:
+**`status` matters for AI**: the assistant and recommender treat only `status='watched'` rows as context — watchlist items are excluded.
 
-- **DB**: Supabase Postgres (`movies` table). RLS scopes every row to `auth.uid() = user_id`. Schema lives in `supabase/migrations/0001_init.sql`.
-- **Auth**: `frontend/src/components/AuthGate.jsx` wraps the app with a Supabase email/password sign-in; gate is a no-op in local mode.
-- **CRUD**: `frontend/src/api/cloud.js` uses the Supabase JS client directly from the browser. `frontend/src/api/movieApi.js` / `tvApi.js` / `assistantApi.js` are tiny switchers that import from `cloud.js` or `*.local.js` based on `VITE_MILO_MODE`.
-- **AI (BYOK)**: providers live in `frontend/src/ai/providers/{openrouter,anthropic,ollama}.js`. The user pastes their key into the Settings modal (top-right gear), keys are stored in `localStorage` under `milo.aiSettings.v1` and **never sent to a Milo-controlled server**. v1 providers: OpenRouter (preferred — one key, many models), Anthropic direct, and Ollama (user-supplied URL).
-- **Letterboxd import**: parsed client-side in `frontend/src/api/letterboxdClient.js`; rows inserted via Supabase client.
-- **Required env**: `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`. See `frontend/.env.example`.
-- **Migration from local SQLite**: `scripts/migrate-sqlite-to-supabase.js --user-id <auth-uid>` with `SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY` env vars.
+## Database — Cloud Mode (Supabase)
+
+Postgres with RLS scoping every row to `auth.uid() = user_id`. Schema spans `supabase/migrations/0001_init.sql` … `0008_email_for_username.sql` (movies, profiles, friends, taste_profiles, rec_feedback).
+
+## AI — Local Mode (Ollama)
+
+`backend/ollama-recommender.js` calls `OLLAMA_URL` (default `http://localhost:11434`).
+- Models listed from `GET /api/ollama/models` (embedding models filtered out via `/embed/i`). **No hardcoded default** — the user picks a model in the UI per request. If `OLLAMA_MODEL` is unset and the request omits a model, the recommender errors loudly.
+- Cache key: `${contentType}:${type}:${model}:${sig}` where `sig = "${count}:${hash(id|rating|status)}"`. Because `sig` hashes over id+rating+status, **editing a rating or status invalidates the cache** — adds/removes aren't the only trigger. TTL 24h, in-memory.
+- On any Ollama failure (down, model not pulled) the route returns `source: 'simple'` with the raw error in `aiErrorMessage` for the frontend to display.
+- `assistant.js` is a chat assistant over Ollama; `taste-analyzer.js` builds the persisted taste profile. Both filter to `status='watched'`.
+
+## AI — Cloud Mode (BYOK)
+
+Providers called **directly from the browser** with user-supplied keys; keys live in `localStorage` under `milo.aiSettings.v1` (`frontend/src/utils/aiSettings.js`) and are **never sent to any Milo-controlled server**.
+
+15 providers in `frontend/src/ai/providers/`: anthropic, cerebras, custom, deepseek, fireworks, googleai, groq, mistral, ollama, openrouter, together, xai, zai, zaiCoding, plus shared `_openaiCompatible.js`. OpenRouter is the preferred one-key-many-models option.
+
+## Backend Modules
+
+- `server.js` — entry; loads `.env`, mounts `/api` routes, binds `0.0.0.0`.
+- `database.js` — SQLite connection, schema init, auto-migration.
+- `routes/index.js` — single large router: all CRUD + `/ollama/*`, `/recommendations`, `/assistant`, `/analytics`, import endpoints. `/api/movies` accepts a `type` query param; `/api/tv` is a TV-only alias.
+- `ollama-recommender.js` — recommendations + 24h cache. `assistant.js` — chat assistant. `taste-analyzer.js` — taste profile.
+- `db-importer.js` / `letterboxd-importer.js` — CSV/SQLite/Letterboxd import via `multer` uploads to `backend/uploads/`.
+
+Frontend state: `MovieContext.jsx`, `TVSeriesContext.jsx`, `FriendsContext.jsx` (React Context, consumed via hooks rather than fetching directly).
+
+## Import / Migration
+
+- Letterboxd import: parsed client-side in `frontend/src/api/letterboxdClient.js` (local → backend API; cloud → direct Supabase inserts).
+- Migrate local SQLite → Supabase: `node scripts/migrate-sqlite-to-supabase.js --user-id <auth-uid>` (needs `SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY` env).
 
 ## Key Configuration
 
@@ -69,10 +93,10 @@ When `VITE_MILO_MODE=cloud`:
 | Ollama generate timeout | 480000 ms (8 min) | `OLLAMA_TIMEOUT_MS` env var |
 | Ollama models endpoint timeout | 30000 ms | `OLLAMA_MODELS_TIMEOUT_MS` env var |
 | Ollama status endpoint timeout | 15000 ms | `OLLAMA_STATUS_TIMEOUT_MS` env var |
-| Milo mode | `local` | `VITE_MILO_MODE=cloud` to enable Supabase + BYOK |
+| Milo mode | `local` | `VITE_MILO_MODE=cloud` |
 | Supabase URL (cloud only) | _none_ | `VITE_SUPABASE_URL` env var |
 | Supabase anon key (cloud only) | _none_ | `VITE_SUPABASE_ANON_KEY` env var |
 
-## No Tests or Build Step
+## No Verification Commands
 
-There are no tests, linting, or type-checking configured. Do not run `npm test`, `npm run lint`, or `tsc` — they will fail or do nothing.
+No tests, linting, type-checking, or CI are configured. `backend` `npm test` just errors. **Do not run `npm test`, `npm run lint`, or `tsc`** — they will fail or no-op.

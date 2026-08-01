@@ -1,80 +1,91 @@
 # Project Structure
 
-Dual-mode monorepo:
-- `backend/` - Node.js + Express + SQLite (port 3000, local mode only)
-- `frontend/` - React + Vite + Tailwind CSS (port 5173)
-- `movies.db` - SQLite database auto-created in project root (local mode only)
-- `supabase/` - Supabase migrations for cloud mode
+Dual-mode monorepo — one React frontend, two data/AI backends selected at build time:
+- `backend/` - Node.js + Express 5 + SQLite (port 3000, **local mode only** — unused in cloud)
+- `frontend/` - React 18 + Vite 5 + Tailwind, react-router-dom v7 (port 5173)
+- `movies.db` - SQLite DB, auto-created in repo root (local mode only; gitignored)
+- `supabase/migrations/` - 8 SQL migrations for cloud Postgres
+- Cloud build deploys to Netlify (`frontend/netlify.toml`, SPA fallback → `/index.html`)
 
 # Startup
 
-Use start scripts - they auto-install dependencies on first run:
+Start scripts auto-install deps on first run and launch both servers:
 - Linux/macOS: `./start.sh`
 - Windows: `start.bat`
 
-Or manually:
-- Backend: `cd backend && node server.js`
-- Frontend: `cd frontend && npm run dev`
+Manual (two terminals):
+- `cd backend && node server.js`
+- `cd frontend && npm run dev`
 
-Both servers bind to `0.0.0.0` for network access.
+Both servers bind `0.0.0.0`. Frontend build: `cd frontend && npm run build` → `dist/`.
 
-# Dual-Mode Architecture
+# Dual-Mode Switching
 
-Mode is selected at build time via `VITE_MILO_MODE` environment variable:
+Mode is a **build-time** flag: `VITE_MILO_MODE=local` (default) | `cloud`.
 
-**Local mode** (default): SQLite + Ollama backend AI, single user
-**Cloud mode**: Supabase (Postgres + Auth) + BYOK AI (browser-side LLM calls with user-supplied keys)
+- `frontend/src/utils/mode.js` exports `IS_CLOUD` / `IS_LOCAL` from `import.meta.env.VITE_MILO_MODE`.
+- API clients (`movieApi.js`, `tvApi.js`, `assistantApi.js`, `tasteApi.js`, `feedbackApi.js`) are **switchers**: top-level `await import('./cloud')` if `IS_CLOUD`, else `./*.local.js` (relative `/api` fetches).
+- `cloud.js` calls Supabase directly from the browser; `*.local.js` hit the Express backend via the Vite `/api` proxy (`vite.config.js`: `/api` → `http://localhost:3000`).
+- `friendsApi.js` / `FriendsContext.jsx` are **cloud-only** (profiles, friend requests, friends' libraries) — no `.local.js` variant.
+- In cloud mode the backend is entirely unused; AuthGate wraps the app with Supabase email/password auth.
 
-In cloud mode, frontend API clients (`movieApi.js`, `tvApi.js`, `assistantApi.js`) switch to direct Supabase/browser calls; backend is unused.
+# Database — Local Mode (SQLite)
 
-# Key Files
+Single `movies` table, created + auto-migrated on backend startup (`backend/database.js`).
 
-- `backend/server.js` - Main entry point (loads .env, binds to 0.0.0.0)
-- `backend/database.js` - SQLite connection, schema init, auto-migration via `migrateDatabase()`
-- `backend/routes/index.js` - All API routes (movies and TV)
-- `backend/ollama-recommender.js` - AI recommendations using Ollama (local mode only)
-- `frontend/src/api/movieApi.js` - API client switches between local/cloud modes
-- `frontend/src/api/cloud.js` - Supabase client for cloud mode
-- `frontend/src/api/assistantApi.js` - AI API client switches between local/cloud modes
-- `frontend/src/utils/MovieContext.jsx` - State management via React Context
-- `frontend/vite.config.js` - Vite proxy: `/api` -> `http://localhost:3000` (local mode)
-- `scripts/migrate-sqlite-to-supabase.js` - Migrate local SQLite to Supabase (cloud mode)
+`movies` columns: `id, title, rating (REAL 1-10), genre, date_watched, notes, director, release_year, type ('movie'|'tv'), num_seasons, total_episodes, status (default 'watched'), created_at`. The `type` column distinguishes movies/TV in one table.
 
-# Database
+Extra tables (also auto-created, idempotent):
+- `taste_profiles` — one row per `scope` (`'all'` = unified movies+TV); persisted AI taste profile.
+- `rec_feedback` — per-user reaction to a recommendation; unique on `(normalized_title, content_type)`; feedback ∈ `interested|not_for_me|seen_it`.
 
-**Local mode**: SQLite `movies.db` auto-created in project root. Schema: `id, title, rating (1-10), genre, date_watched, notes, director, release_year, type (movie/tv), num_seasons, total_episodes, created_at`. Single table with `type` column distinguishes movies/TV.
+**Migration** (`migrateDatabase()`): detects missing columns / NOT NULL constraints and rebuilds via `movies_new` copy + rename. Also runs `recoverTvTypes()` (rows with seasons/episodes but `type='movie'` → `'tv'`).
 
-**Cloud mode**: Supabase Postgres with RLS scoped to `auth.uid() = user_id`. Schema in `supabase/migrations/0001_init.sql`.
+**`status` matters for AI**: assistant and recommender treat only `status='watched'` rows as context — watchlist items are excluded.
 
-Auto-migration on startup via `database.js:migrateDatabase()` handles schema changes automatically (local mode only).
+# Database — Cloud Mode (Supabase)
 
-# AI Recommendations
+Postgres with RLS scoping every row to `auth.uid() = user_id`. Schema across `supabase/migrations/0001_init.sql` … `0008_email_for_username.sql` (movies, profiles, friends, taste_profiles, rec_feedback).
 
-**Local mode**: Ollama at `http://localhost:11434` by default. Models are listed from `/api/ollama/models` (embedding models filtered out) and selected in UI per request—no hardcoded default. AI responses cached 24h per cache key (`contentType:type:model`). Gracefully degrades to fallback recommendations if Ollama unavailable.
+# AI — Local Mode (Ollama)
 
-**Cloud mode**: BYOK (Bring Your Own Key) - AI providers called directly from browser using user-supplied keys stored in `localStorage`. Providers in `frontend/src/ai/providers/`: OpenRouter (preferred), Anthropic direct, Ollama (user-supplied URL). Keys stored under `milo.aiSettings.v1`, never sent to Milo-controlled server.
+`backend/ollama-recommender.js` calls `OLLAMA_URL` (default `http://localhost:11434`).
+- Models listed from `GET /api/ollama/models` (embedding models filtered out via `/embed/i`); **no hardcoded default** — user picks a model in the UI per request. If `OLLAMA_MODEL` is unset and the request omits one, the recommender errors.
+- **Cache key: `${contentType}:${type}:${model}:${sig}`** where `sig = librarySignature = "${count}:${hash(id|rating|status)}"`. Because `sig` is hashed over id+rating+status, **editing a rating or status invalidates the cache** — adds/removes are not the only trigger. TTL 24h (in-memory).
+- On any Ollama failure (down, model not pulled) the route returns `source: 'simple'` with the raw error in `aiErrorMessage`.
 
-# OLLAMA Configuration (Local Mode)
+Ollama env (in `backend/.env`, all have defaults): `OLLAMA_URL`, `OLLAMA_MODEL`, `OLLAMA_TIMEOUT_MS` (480000), `OLLAMA_MODELS_TIMEOUT_MS` (30000), `OLLAMA_STATUS_TIMEOUT_MS` (15000).
 
-Configure in `backend/.env` (all have defaults):
-- `OLLAMA_URL=http://localhost:11434`
-- `OLLAMA_TIMEOUT_MS=480000` (8 min)
-- `OLLAMA_MODELS_TIMEOUT_MS=30000` (30 sec)
-- `OLLAMA_STATUS_TIMEOUT_MS=15000` (15 sec)
+# AI — Cloud Mode (BYOK)
 
-# Cloud Mode Requirements
+Providers called **directly from the browser** with user-supplied keys; keys live in `localStorage` under `milo.aiSettings.v1` (`frontend/src/utils/aiSettings.js`) and are **never sent to any Milo-controlled server**.
 
-Required env vars (build-time):
-- `VITE_MILO_MODE=cloud` - Enable cloud mode
-- `VITE_SUPABASE_URL` - Supabase project URL
-- `VITE_SUPABASE_ANON_KEY` - Supabase anon key
+15 providers in `frontend/src/ai/providers/`: anthropic, cerebras, custom, deepseek, fireworks, googleai, groq, mistral, ollama, openrouter, together, xai, zai, zaiCoding, plus shared `_openaiCompatible.js`. (OpenRouter is the preferred one-key-many-models option.)
 
-See `frontend/.env.example` for cloud configuration.
+# Backend Modules
 
-# Letterboxd Import
+- `server.js` — entry; loads `.env`, mounts `/api` routes, binds `0.0.0.0`.
+- `database.js` — SQLite conn, schema init, auto-migration.
+- `routes/index.js` — single ~920-line router: all CRUD + `/ollama/*`, `/recommendations`, `/assistant`, `/analytics`, import endpoints.
+- `ollama-recommender.js` — recommendations + 24h cache.
+- `assistant.js` — chat assistant over Ollama (filters to `status='watched'`).
+- `taste-analyzer.js` — builds the persisted taste profile.
+- `db-importer.js` / `letterboxd-importer.js` — CSV/SQLite/Letterboxd import via `multer` uploads to `backend/uploads/`.
 
-Parsed client-side in `frontend/src/api/letterboxdClient.js` (local mode: via backend API; cloud mode: direct Supabase inserts).
+Frontend state: `MovieContext.jsx`, `TVSeriesContext.jsx`, `FriendsContext.jsx` (React Context, consumed via hooks).
+
+# Cloud Mode Build
+
+Required build-time env (see `frontend/.env.example`):
+- `VITE_MILO_MODE=cloud`
+- `VITE_SUPABASE_URL`
+- `VITE_SUPABASE_ANON_KEY`
+
+# Import / Migration
+
+- Letterboxd import: parsed client-side in `frontend/src/api/letterboxdClient.js` (local → backend API; cloud → direct Supabase inserts).
+- Migrate local SQLite → Supabase: `node scripts/migrate-sqlite-to-supabase.js --user-id <auth-uid>` (needs `SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY` env).
 
 # No Verification Commands
 
-No tests, linting, type checking, or CI configured. Do not run verification commands.
+No tests, linting, type-checking, or CI are configured. `backend` `npm test` just errors. **Do not run `npm test`, `npm run lint`, or `tsc`** — they will fail or no-op.
