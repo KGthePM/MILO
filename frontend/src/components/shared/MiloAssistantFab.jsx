@@ -31,7 +31,7 @@ export default function MiloAssistantFab() {
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 5 }}
             transition={{ duration: 0.2 }}
-            className="fixed bottom-40 right-3 sm:bottom-28 sm:right-4 glass rounded-lg px-3 py-1.5 text-xs text-white shadow-lg pointer-events-none z-50 whitespace-nowrap"
+            className="fixed bottom-40 right-3 sm:bottom-48 sm:right-4 glass rounded-lg px-3 py-1.5 text-xs text-white shadow-lg pointer-events-none z-50 whitespace-nowrap"
           >
             {tooltipMessage}
           </motion.div>
@@ -42,11 +42,11 @@ export default function MiloAssistantFab() {
         onClick={() => setIsAssistantOpen(true)}
         onMouseEnter={handleMouseEnter}
         onMouseLeave={() => setShowTooltip(false)}
-        className="fixed bottom-24 right-3 w-14 h-14 sm:bottom-4 sm:right-4 sm:w-24 sm:h-24 border-2 border-white/20 flex items-center justify-center transition-all z-40 rounded-full sm:rounded-none bg-bg-primary/60 sm:bg-transparent"
+        className="fixed bottom-24 right-3 w-14 h-14 sm:bottom-24 sm:right-4 sm:w-20 sm:h-20 border-2 border-white/20 flex items-center justify-center transition-all z-40 rounded-full sm:rounded-none bg-bg-primary/60 sm:bg-transparent"
         whileHover={{ scale: 1.05 }}
         whileTap={{ scale: 0.95 }}
       >
-        <img src={miloIcon} alt="MILO AI" className="w-10 h-10 sm:w-20 sm:h-20 object-contain" />
+        <img src={miloIcon} alt="MILO AI" className="w-10 h-10 sm:w-16 sm:h-16 object-contain sm:drop-shadow-lg" />
       </motion.button>
 
       <AssistantModal isOpen={isAssistantOpen} onClose={() => setIsAssistantOpen(false)} />
