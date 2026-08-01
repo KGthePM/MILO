@@ -39,14 +39,16 @@ export default function EditMovieModal({ isOpen, onClose, movie }) {
 
   if (!isOpen || !movie) return null;
 
+  const isToWatch = formData.status === 'to_watch';
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setIsSubmitting(true);
     try {
       await updateMovie(movie.id, {
         ...formData,
-        rating: parseFloat(formData.rating),
-        date_watched: formData.date_watched || null,
+        rating: isToWatch ? null : parseFloat(formData.rating),
+        date_watched: isToWatch ? null : (formData.date_watched || null),
         release_year: formData.release_year ? parseInt(formData.release_year) : null,
       });
       onClose();
@@ -84,6 +86,18 @@ export default function EditMovieModal({ isOpen, onClose, movie }) {
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
+            <label className="block text-sm font-medium mb-2 text-white/80">Status</label>
+            <select
+              value={formData.status}
+              onChange={(e) => setFormData({ ...formData, status: e.target.value })}
+              className="w-full px-4 py-3 rounded-lg glass"
+            >
+              <option value="watched">Watched</option>
+              <option value="to_watch">To Watch</option>
+            </select>
+          </div>
+
+          <div>
             <label className="block text-sm font-medium mb-2 text-white/80">Title *</label>
             <input
               type="text"
@@ -120,20 +134,22 @@ export default function EditMovieModal({ isOpen, onClose, movie }) {
             />
           </div>
 
-          <div>
-            <label className="block text-sm font-medium mb-2 text-white/80">Rating (1-10) *</label>
-            <input
-              type="number"
-              min="1"
-              max="10"
-              step="0.01"
-              required
-              value={formData.rating}
-              onChange={(e) => setFormData({ ...formData, rating: e.target.value })}
-              className="w-full px-4 py-3 rounded-lg glass"
-              placeholder="Enter rating"
-            />
-          </div>
+          {!isToWatch && (
+            <div>
+              <label className="block text-sm font-medium mb-2 text-white/80">Rating (1-10) *</label>
+              <input
+                type="number"
+                min="1"
+                max="10"
+                step="0.01"
+                required
+                value={formData.rating}
+                onChange={(e) => setFormData({ ...formData, rating: e.target.value })}
+                className="w-full px-4 py-3 rounded-lg glass"
+                placeholder="Enter rating"
+              />
+            </div>
+          )}
 
           <div>
             <label className="block text-sm font-medium mb-2 text-white/80">Genre</label>
@@ -151,15 +167,17 @@ export default function EditMovieModal({ isOpen, onClose, movie }) {
             </select>
           </div>
 
-          <div>
-            <label className="block text-sm font-medium mb-2 text-white/80">Date Watched</label>
-            <input
-              type="date"
-              value={formData.date_watched}
-              onChange={(e) => setFormData({ ...formData, date_watched: e.target.value })}
-              className="w-full px-4 py-3 rounded-lg glass"
-            />
-          </div>
+          {!isToWatch && (
+            <div>
+              <label className="block text-sm font-medium mb-2 text-white/80">Date Watched</label>
+              <input
+                type="date"
+                value={formData.date_watched}
+                onChange={(e) => setFormData({ ...formData, date_watched: e.target.value })}
+                className="w-full px-4 py-3 rounded-lg glass"
+              />
+            </div>
+          )}
 
           <div>
             <label className="block text-sm font-medium mb-2 text-white/80">Notes</label>
