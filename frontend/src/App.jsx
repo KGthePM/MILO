@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import MoviesPage from './pages/MoviesPage';
 import TVSeriesPage from './pages/TVSeriesPage';
+import TimelinePage from './pages/TimelinePage';
 import LandingPage from './pages/LandingPage';
 import SettingsPage from './pages/SettingsPage';
 import FriendsPage from './pages/FriendsPage';
@@ -33,6 +34,7 @@ function GatedApp() {
             <Route path="/" element={<MoviesPage />} />
             <Route path="/movies" element={<MoviesPage />} />
             <Route path="/tv" element={<TVSeriesPage />} />
+            <Route path="/timeline" element={<TimelinePage />} />
             <Route path="/settings" element={<SettingsPage />} />
             {IS_CLOUD && <Route path="/friends" element={<FriendsPage />} />}
             {IS_CLOUD && <Route path="/friends/:friendId" element={<FriendProfilePage />} />}

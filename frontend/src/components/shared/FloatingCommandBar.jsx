@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Film, Tv, Plus, RefreshCw, Settings as SettingsIcon, LogIn, LogOut, Users } from 'lucide-react';
+import { Film, Tv, Clock, Plus, RefreshCw, Settings as SettingsIcon, LogIn, LogOut, Users } from 'lucide-react';
 import { IS_CLOUD } from '../../utils/mode';
 import { getSupabase } from '../../utils/supabase';
 import ConfirmDialog from './ConfirmDialog';
@@ -70,6 +70,8 @@ export default function FloatingCommandBar({ page, onAdd, onRefresh }) {
   };
 
   const onMoviesPath = location.pathname === '/' || location.pathname === '/movies';
+  const onTvPath = location.pathname.startsWith('/tv');
+  const onTimelinePath = location.pathname.startsWith('/timeline');
 
   return (
     <>
@@ -102,7 +104,7 @@ export default function FloatingCommandBar({ page, onAdd, onRefresh }) {
           to="/tv"
           title="TV Series"
           className={`flex items-center gap-2 px-2.5 sm:px-4 h-11 rounded-xl font-medium text-sm transition-all shrink-0 ${
-            !onMoviesPath
+            onTvPath
               ? 'bg-neon-magenta/20 text-neon-magenta neon-border-magenta'
               : 'text-white/60 hover:text-white hover:bg-white/5'
           }`}
@@ -110,24 +112,38 @@ export default function FloatingCommandBar({ page, onAdd, onRefresh }) {
           <Tv size={18} />
           <span className="hidden sm:inline">TV</span>
         </Link>
+        <Link
+          to="/timeline"
+          title="Timeline"
+          className={`flex items-center gap-2 px-2.5 sm:px-4 h-11 rounded-xl font-medium text-sm transition-all shrink-0 ${
+            onTimelinePath
+              ? 'bg-white/15 text-white neon-border-magenta'
+              : 'text-white/60 hover:text-white hover:bg-white/5'
+          }`}
+        >
+          <Clock size={18} />
+          <span className="hidden sm:inline">Timeline</span>
+        </Link>
 
         <Divider />
 
         {/* Primary action: Add */}
-        <motion.button
-          onClick={onAdd}
-          title={isMovies ? 'Add Movie' : 'Add TV Series'}
-          whileHover={{ scale: 1.05 }}
-          whileTap={{ scale: 0.95 }}
-          className={`flex items-center gap-2 h-11 px-3 sm:px-4 rounded-xl font-semibold text-sm transition-all pulse-glow shrink-0 ${
-            isMovies
-              ? 'bg-neon-cyan/20 border border-neon-cyan/60 text-neon-cyan neon-text-cyan hover:bg-neon-cyan/30'
-              : 'bg-neon-magenta/20 border border-neon-magenta/60 text-neon-magenta neon-text-magenta hover:bg-neon-magenta/30'
-          }`}
-        >
-          <Plus size={20} />
-          <span className="hidden sm:inline">Add</span>
-        </motion.button>
+        {onAdd && (
+          <motion.button
+            onClick={onAdd}
+            title={isMovies ? 'Add Movie' : 'Add TV Series'}
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+            className={`flex items-center gap-2 h-11 px-3 sm:px-4 rounded-xl font-semibold text-sm transition-all pulse-glow shrink-0 ${
+              isMovies
+                ? 'bg-neon-cyan/20 border border-neon-cyan/60 text-neon-cyan neon-text-cyan hover:bg-neon-cyan/30'
+                : 'bg-neon-magenta/20 border border-neon-magenta/60 text-neon-magenta neon-text-magenta hover:bg-neon-magenta/30'
+            }`}
+          >
+            <Plus size={20} />
+            <span className="hidden sm:inline">Add</span>
+          </motion.button>
+        )}
 
         {/* Refresh */}
         {onRefresh && (
