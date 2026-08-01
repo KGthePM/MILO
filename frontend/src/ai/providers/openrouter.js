@@ -52,5 +52,5 @@ export async function generateRecommendations({ systemPrompt, userPrompt, apiKey
 }
 
 export async function chatAssistant({ systemPrompt, userPrompt, apiKey, model, signal }) {
-  return chat({ apiKey, model, systemPrompt, userPrompt, signal, maxTokens: 600 });
+  return chat({ apiKey, model, systemPrompt, userPrompt, signal, maxTokens: 2000 });
 }

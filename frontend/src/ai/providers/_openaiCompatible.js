@@ -101,7 +101,7 @@ export function createOpenAICompatibleProvider({
   }
 
   async function chatAssistant(opts) {
-    return chat({ ...opts, maxTokens: 600 });
+    return chat({ ...opts, maxTokens: 2000 });
   }
 
   return { listModels, chat, generateRecommendations, chatAssistant };

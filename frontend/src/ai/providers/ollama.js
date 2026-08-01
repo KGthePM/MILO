@@ -45,5 +45,5 @@ export async function generateRecommendations({ systemPrompt, userPrompt, ollama
 }
 
 export async function chatAssistant({ systemPrompt, userPrompt, ollamaUrl, model, signal }) {
-  return generate({ ollamaUrl, model, systemPrompt, userPrompt, signal, numPredict: 500 });
+  return generate({ ollamaUrl, model, systemPrompt, userPrompt, signal, numPredict: 2000 });
 }

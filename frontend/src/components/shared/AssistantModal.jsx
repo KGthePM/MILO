@@ -105,7 +105,11 @@ export default function AssistantModal({ isOpen, onClose }) {
         combinedAnalytics,
         priorHistory
       );
-      const assistantTurn = { role: 'assistant', content: result.response, ts: Date.now() };
+      const responseText = (result.response || '').trim();
+      if (!responseText) {
+        throw new Error('MILO returned an empty response. Try again or pick a different model.');
+      }
+      const assistantTurn = { role: 'assistant', content: responseText, ts: Date.now() };
       setMessages((prev) => [...prev, assistantTurn]);
       setSelectedModel(result.modelUsed || selectedModel);
     } catch (err) {
