@@ -1,4 +1,7 @@
 import { parseRecommendationsJSON } from '../prompt';
+import { IS_CLOUD } from '../../utils/mode';
+
+const PROXY_URL = '/.netlify/functions/zai-proxy';
 
 function normalizeBaseUrl(url, label) {
   if (!url) throw new Error(`${label} base URL required.`);
@@ -39,6 +42,8 @@ export function createOpenAICompatibleProvider({
   modelsPath = '/models',
   defaultModels = [],
   extraHeaders = {},
+  proxied = false,
+  proxyKey = null,
 }) {
   function authHeaders(apiKey) {
     return {
@@ -48,12 +53,34 @@ export function createOpenAICompatibleProvider({
     };
   }
 
+  // api.z.ai (zai / zaiCoding) doesn't send Access-Control-Allow-Origin on
+  // its preflight, so a direct browser fetch() is blocked by CORS. Route
+  // those two providers through a same-origin Netlify Function instead,
+  // which makes the request server-side where CORS doesn't apply. The key
+  // is forwarded per-request only, never stored by the function.
+  const useProxy = proxied && IS_CLOUD;
+
+  async function proxyRequest(path, { apiKey, body, signal }) {
+    const res = await fetch(PROXY_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      signal,
+      body: JSON.stringify({ provider: proxyKey, path, apiKey, body }),
+    });
+    return res;
+  }
+
   async function listModels({ apiKey, signal, baseUrl: baseUrlOverride, name: nameOverride } = {}) {
     const label = nameOverride || name;
     if (!apiKey) throw new Error(`${label} API key required.`);
-    const url = normalizeBaseUrl(baseUrlOverride || baseUrl, label);
     try {
-      const res = await fetch(`${url}${modelsPath}`, { headers: authHeaders(apiKey), signal });
+      let res;
+      if (useProxy) {
+        res = await proxyRequest(modelsPath, { apiKey, signal });
+      } else {
+        const url = normalizeBaseUrl(baseUrlOverride || baseUrl, label);
+        res = await fetch(`${url}${modelsPath}`, { headers: authHeaders(apiKey), signal });
+      }
       if (!res.ok) return [...defaultModels];
       const json = await res.json();
       const ids = (json.data || json.models || [])
@@ -68,22 +95,28 @@ export function createOpenAICompatibleProvider({
   async function chat({ apiKey, model, systemPrompt, userPrompt, signal, maxTokens = 1200, baseUrl: baseUrlOverride, name: nameOverride }) {
     const label = nameOverride || name;
     if (!apiKey) throw new Error(`${label} API key required.`);
-    const url = normalizeBaseUrl(baseUrlOverride || baseUrl, label);
     if (!model) throw new Error('Pick a model from the dropdown.');
-    const res = await fetch(`${url}/chat/completions`, {
-      method: 'POST',
-      headers: authHeaders(apiKey),
-      signal,
-      body: JSON.stringify({
-        model,
-        max_tokens: maxTokens,
-        temperature: 0.7,
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: userPrompt },
-        ],
-      }),
-    });
+    const requestBody = {
+      model,
+      max_tokens: maxTokens,
+      temperature: 0.7,
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: userPrompt },
+      ],
+    };
+    let res;
+    if (useProxy) {
+      res = await proxyRequest('/chat/completions', { apiKey, body: requestBody, signal });
+    } else {
+      const url = normalizeBaseUrl(baseUrlOverride || baseUrl, label);
+      res = await fetch(`${url}/chat/completions`, {
+        method: 'POST',
+        headers: authHeaders(apiKey),
+        signal,
+        body: JSON.stringify(requestBody),
+      });
+    }
     if (!res.ok) throw new Error(await formatHttpError(res, label));
     const json = await res.json();
     return json.choices?.[0]?.message?.content || '';
