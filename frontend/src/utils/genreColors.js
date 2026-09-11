@@ -1,5 +1,5 @@
-// Screen genres (movies + TV). `Comedy` and `Documentary` are shared with
-// podcasts, so they are intentionally not repeated below.
+// Screen genres (movies + TV). `Documentary` is shared with podcasts (same
+// color in both maps), so it is intentionally not repeated below.
 export const SCREEN_GENRE_COLORS = {
   Action: '#ff006e',
   Comedy: '#ffbe0b',
@@ -16,6 +16,7 @@ export const SCREEN_GENRE_COLORS = {
 // Podcast genres, matching the `primaryGenreName` strings the iTunes Search
 // API returns, so a looked-up show lands on a genre that already has a color.
 export const PODCAST_GENRE_COLORS = {
+  Comedy: '#ffbe0b',
   'True Crime': '#dc2626',
   Technology: '#06b6d4',
   News: '#64748b',
