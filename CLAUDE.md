@@ -69,6 +69,8 @@ Providers called **directly from the browser** with user-supplied keys; keys liv
 
 **z.ai / z.ai Coding exception**: `api.z.ai` doesn't send CORS headers, so a direct browser `fetch()` to it is blocked (surfaces as a raw "NetworkError when attempting to fetch resource"). Those two providers set `proxied: true` in `createOpenAICompatibleProvider` (`_openaiCompatible.js`) and, in cloud mode, route through `frontend/netlify/functions/zai-proxy.js` instead of calling `api.z.ai` directly. That function forwards the request server-side to a hardcoded allowlist of z.ai endpoints — the key passes through per-request only, never logged or stored. All other providers are confirmed CORS-friendly and still call their APIs directly from the browser. Testing this locally requires `netlify dev` (not plain `vite dev`), since Vite alone doesn't serve Netlify Functions.
 
+**60-second ceiling on the proxy**: Netlify Functions are hard-capped at 60s (streaming does not raise it), and past that the caller gets an opaque Lambda crash body that surfaced as `z.ai Coding: 502 …`. Mitigations in place: the proxy aborts upstream at 55s with a real JSON 504; `stream: true` responses are piped through unbuffered (`supportsStreaming: true` on both z.ai providers) so a truncated request still yields usable partial text; `jsonGenerationMaxTokens: 3000` instead of the 8000 default; and `thinking: {type:'disabled'}` on both JSON and assistant calls, with a one-shot retry without the field on HTTP 400 for models that refuse to disable reasoning. See `Archive_doc_update/zai-cloud-502-known-issue.md`.
+
 ## Backend Modules
 
 - `server.js` — entry; loads `.env`, mounts `/api` routes, binds `0.0.0.0`.

@@ -63,7 +63,13 @@ export default function AssistantModal({ isOpen, onClose }) {
     fetchModels();
   }, []);
 
+  // A streaming reply changes on every token; persisting each intermediate
+  // state would mean hundreds of localStorage writes per answer. The final
+  // state is saved as soon as the reply settles.
+  const isStreaming = messages.length > 0 && messages[messages.length - 1].streaming === true;
+
   useEffect(() => {
+    if (isStreaming) return;
     try {
       if (messages.length === 0) {
         localStorage.removeItem(STORAGE_KEY);
@@ -74,7 +80,7 @@ export default function AssistantModal({ isOpen, onClose }) {
     } catch {
       // ignore quota errors
     }
-  }, [messages]);
+  }, [messages, isStreaming]);
 
   useEffect(() => {
     if (transcriptRef.current) {
@@ -96,6 +102,35 @@ export default function AssistantModal({ isOpen, onClose }) {
     setError(null);
     setMessage('');
 
+    // Providers that stream fill this bubble in as tokens arrive; the rest
+    // never call onToken and the reply simply appears when it's done.
+    const streamTs = userTurn.ts + 1;
+    let streamedText = '';
+    const onToken = (_delta, textSoFar) => {
+      streamedText = textSoFar;
+      setMessages((prev) => {
+        const idx = prev.findIndex((m) => m.ts === streamTs);
+        if (idx === -1) {
+          return [...prev, { role: 'assistant', content: textSoFar, ts: streamTs, streaming: true }];
+        }
+        const next = [...prev];
+        next[idx] = { ...next[idx], content: textSoFar };
+        return next;
+      });
+    };
+
+    const settleStreamedTurn = (content) => {
+      setMessages((prev) => {
+        const idx = prev.findIndex((m) => m.ts === streamTs);
+        if (idx === -1) {
+          return content ? [...prev, { role: 'assistant', content, ts: streamTs }] : prev;
+        }
+        const next = [...prev];
+        next[idx] = { role: 'assistant', content, ts: streamTs };
+        return next;
+      });
+    };
+
     try {
       const result = await assistantApi.chatWithAssistant(
         userMessage,
@@ -103,16 +138,19 @@ export default function AssistantModal({ isOpen, onClose }) {
         combinedMovies,
         combinedTV,
         combinedAnalytics,
-        priorHistory
+        priorHistory,
+        { onToken }
       );
       const responseText = (result.response || '').trim();
       if (!responseText) {
         throw new Error('MILO returned an empty response. Try again or pick a different model.');
       }
-      const assistantTurn = { role: 'assistant', content: responseText, ts: Date.now() };
-      setMessages((prev) => [...prev, assistantTurn]);
+      settleStreamedTurn(responseText);
       setSelectedModel(result.modelUsed || selectedModel);
     } catch (err) {
+      // Keep whatever streamed through before the failure — a partial answer
+      // is more useful than an error on its own.
+      settleStreamedTurn(streamedText.trim());
       setError(err.message);
     } finally {
       setLoading(false);
@@ -258,7 +296,7 @@ export default function AssistantModal({ isOpen, onClose }) {
                 </motion.div>
               )}
 
-              {loading && (
+              {loading && !isStreaming && (
                 <motion.div
                   initial={{ opacity: 0, scale: 0.95 }}
                   animate={{ opacity: 1, scale: 1 }}

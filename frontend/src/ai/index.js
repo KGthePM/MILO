@@ -120,7 +120,8 @@ export async function generateTasteProfile({
     systemPrompt,
     userPrompt,
     ...providerCallOpts(settings),
-    maxTokens: 8000,
+    maxTokens: provider.jsonGenerationMaxTokens || 8000,
+    extraBody: provider.jsonGenerationExtraBody || undefined,
     signal,
   });
   const profile = parseTasteProfileJSON(text);
@@ -140,6 +141,9 @@ export async function chatAssistant({
   tasteProfile = null,
   settings = loadAISettings(),
   signal,
+  // Called with (delta, textSoFar) as tokens arrive, for providers that
+  // stream. Never called for the rest — their reply lands in one piece.
+  onToken = null,
 } = {}) {
   const { systemPrompt, userPrompt } = buildAssistantPrompt(message, movies, tvSeries, analytics, history, tasteProfile);
   const provider = getProvider(settings.provider);
@@ -148,6 +152,7 @@ export async function chatAssistant({
     userPrompt,
     ...providerCallOpts(settings),
     signal,
+    onToken,
   });
   return { response, modelUsed: settings.model, provider: settings.provider };
 }

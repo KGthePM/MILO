@@ -15,6 +15,10 @@ const TARGETS = {
 
 const ALLOWED_PATHS = new Set(['/chat/completions', '/models']);
 
+// Netlify's synchronous function execution limit is a hard, non-configurable
+// 60s on every plan tier (streaming does not raise it). Stay just under it.
+const UPSTREAM_TIMEOUT_MS = 55000;
+
 export default async (req) => {
   if (req.method !== 'POST') {
     return new Response('Method not allowed', { status: 405 });
@@ -57,6 +61,10 @@ export default async (req) => {
       Authorization: `Bearer ${apiKey}`,
       'Content-Type': 'application/json',
     },
+    // Netlify kills a synchronous function at a hard 60s and replaces the
+    // response with an opaque Lambda crash body. Bail out just short of that
+    // so the caller gets a real error it can render instead.
+    signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS),
   };
   if (upstreamInit.method === 'POST') {
     upstreamInit.body = JSON.stringify(body || {});
@@ -66,9 +74,32 @@ export default async (req) => {
   try {
     upstreamRes = await fetch(`${base}${path}`, upstreamInit);
   } catch (err) {
-    return new Response(JSON.stringify({ error: `Upstream request failed: ${err.message}` }), {
-      status: 502,
-      headers: { 'Content-Type': 'application/json' },
+    const timedOut = err.name === 'TimeoutError' || err.name === 'AbortError';
+    return new Response(
+      JSON.stringify({
+        error: timedOut
+          ? `Upstream request timed out after ${Math.round(UPSTREAM_TIMEOUT_MS / 1000)}s`
+          : `Upstream request failed: ${err.message}`,
+      }),
+      {
+        status: timedOut ? 504 : 502,
+        headers: { 'Content-Type': 'application/json' },
+      }
+    );
+  }
+
+  // Streamed completions are piped straight back to the browser without
+  // buffering, so the caller starts receiving tokens immediately and keeps
+  // whatever arrived even if the request is cut short.
+  const wantsStream = upstreamInit.method === 'POST' && body && body.stream === true;
+  if (wantsStream && upstreamRes.ok && upstreamRes.body) {
+    return new Response(upstreamRes.body, {
+      status: upstreamRes.status,
+      headers: {
+        'Content-Type': upstreamRes.headers.get('content-type') || 'text/event-stream',
+        'Cache-Control': 'no-cache',
+        Connection: 'keep-alive',
+      },
     });
   }
 

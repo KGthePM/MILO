@@ -268,37 +268,52 @@ export const movieApi = {
       console.error('Failed to load rec feedback:', e.message);
     }
 
+    // Run the (recType, contentType) combinations concurrently — each is an
+    // independent AI call, and there's no reason to make the user wait for
+    // their sum instead of just the slowest one. `tasks` fixes an iteration
+    // order so results below fold back deterministically regardless of which
+    // promise actually settles first.
+    const tasks = [];
+    for (const recType of recTypes) {
+      for (const ct of contentTypes) tasks.push({ recType, ct });
+    }
+
+    async function runOne({ recType, ct }) {
+      const recentKey = `${ct}:${recType}`;
+      const feedback = groupFeedback(feedbackRows.filter((r) => r.content_type === ct));
+      const recs = await aiGenerate({
+        userMovies: rowsByType[ct],
+        type: recType,
+        contentType: ct,
+        extraExclusions: recentlyRecommended.get(recentKey) || [],
+        tasteProfile,
+        feedback,
+        sample,
+        settings,
+      });
+      const watchedSet = new Set(rowsByType[ct].map((r) => normalizeTitle(r.title)));
+      // Hard-filter feedback titles too — the model may ignore instructions.
+      const feedbackSet = new Set(
+        [...feedback.interested, ...feedback.notForMe, ...feedback.seenIt].map(normalizeTitle)
+      );
+      const filtered = recs.filter((r) => !watchedSet.has(normalizeTitle(r.title)) && !feedbackSet.has(normalizeTitle(r.title)));
+      rememberRecs(recentKey, filtered.map((r) => r.title));
+      return filtered.map((r) => ({ ...r, type: recType, contentType: ct, cached: false }));
+    }
+
+    const settled = await Promise.allSettled(tasks.map(runOne));
+
     const allRecs = [];
     let lastError = null;
-    for (const recType of recTypes) {
-      for (const ct of contentTypes) {
-        try {
-          const recentKey = `${ct}:${recType}`;
-          const feedback = groupFeedback(feedbackRows.filter((r) => r.content_type === ct));
-          const recs = await aiGenerate({
-            userMovies: rowsByType[ct],
-            type: recType,
-            contentType: ct,
-            extraExclusions: recentlyRecommended.get(recentKey) || [],
-            tasteProfile,
-            feedback,
-            sample,
-            settings,
-          });
-          const watchedSet = new Set(rowsByType[ct].map((r) => normalizeTitle(r.title)));
-          // Hard-filter feedback titles too — the model may ignore instructions.
-          const feedbackSet = new Set(
-            [...feedback.interested, ...feedback.notForMe, ...feedback.seenIt].map(normalizeTitle)
-          );
-          const filtered = recs.filter((r) => !watchedSet.has(normalizeTitle(r.title)) && !feedbackSet.has(normalizeTitle(r.title)));
-          rememberRecs(recentKey, filtered.map((r) => r.title));
-          filtered.forEach((r) => allRecs.push({ ...r, type: recType, contentType: ct, cached: false }));
-        } catch (e) {
-          lastError = e;
-          console.error(`AI failed for ${ct}/${recType}:`, e.message);
-        }
+    settled.forEach((result, i) => {
+      if (result.status === 'fulfilled') {
+        allRecs.push(...result.value);
+      } else {
+        lastError = result.reason;
+        const { recType, ct } = tasks[i];
+        console.error(`AI failed for ${ct}/${recType}:`, result.reason.message);
       }
-    }
+    });
 
     if (allRecs.length) {
       return {
@@ -387,12 +402,12 @@ export const tvApi = {
 };
 
 export const assistantApi = {
-  async chatWithAssistant(message, model = null, movies = [], tvSeries = [], analytics = null, history = []) {
+  async chatWithAssistant(message, model = null, movies = [], tvSeries = [], analytics = null, history = [], { onToken = null } = {}) {
     const { chatAssistant } = await import('../ai');
     const settings = loadAISettings();
     if (model) settings.model = model;
     const tasteProfile = await loadSavedTasteProfile();
-    return chatAssistant({ message, movies, tvSeries, analytics, history, tasteProfile, settings });
+    return chatAssistant({ message, movies, tvSeries, analytics, history, tasteProfile, settings, onToken });
   },
   async getOllamaModels() {
     return movieApi.getOllamaModels();

@@ -1,7 +1,9 @@
 const API_BASE = '/api';
 
 export const assistantApi = {
-  async chatWithAssistant(message, model = null, movies = [], tvSeries = [], analytics = null, history = []) {
+  // `options` (e.g. { onToken }) is accepted for signature parity with the
+  // cloud client; the local backend returns the reply in one piece.
+  async chatWithAssistant(message, model = null, movies = [], tvSeries = [], analytics = null, history = [], options = {}) { // eslint-disable-line no-unused-vars
     const response = await fetch(`${API_BASE}/assistant/chat`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },

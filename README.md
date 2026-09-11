@@ -140,7 +140,7 @@ For example, if your IP is `192.168.1.100`:
 ## 🛠️ Project Structure
 
 ```
-Movie_Dashboard/
+MILO/
 ├── backend/              # Node.js + Express server
 │   ├── database.js      # SQLite database setup with auto-migration
 │   ├── server.js        # Main server file
