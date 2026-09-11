@@ -7,7 +7,8 @@ import {
 import { normalizeTitle, hashLibrary, compactProfileSnapshot } from '../ai/prompt';
 import { loadAISettings } from '../utils/aiSettings';
 import { parseLetterboxdCSV, processLetterboxdRows } from './letterboxdClient';
-import { parseMiloDb, processDbRows } from './dbClient';
+import { parseMiloDb, processDbRows, normalizeType } from './dbClient';
+import { getContentType, CONTENT_TYPE_KEYS } from '../utils/contentTypes';
 
 const TABLE = 'movies';
 
@@ -37,11 +38,12 @@ async function requireUserId() {
 
 const TASTE_TABLE = 'taste_profiles';
 
-// Signature over the whole watched library (movies + TV) — including
-// rating/status edits, not just adds/removes. Mirrors backend/taste-analyzer.js
-// profileSignature so staleness is computed the same way.
-function profileSignature(movies = [], tvSeries = []) {
-  const all = [...movies, ...tvSeries];
+// Signature over the whole watched library (movies + TV + podcasts) —
+// including rating/status edits, not just adds/removes. Mirrors
+// backend/taste-analyzer.js profileSignature so staleness is computed the
+// same way.
+function profileSignature(movies = [], tvSeries = [], podcasts = []) {
+  const all = [...movies, ...tvSeries, ...podcasts];
   if (all.length === 0) return '0:';
   return `${all.length}:${hashLibrary(all)}`;
 }
@@ -56,13 +58,13 @@ const AUTO_REFRESH_MAX_AGE_DAYS = 14;
 // call so a failing key doesn't burn a taste-analysis call on every Generate.
 let autoRefreshTriedFor = null;
 
-function shouldAutoRefreshProfile({ row, movies, tvSeries, feedbackRows, now = Date.now() }) {
+function shouldAutoRefreshProfile({ row, movies, tvSeries, podcasts = [], feedbackRows, now = Date.now() }) {
   if (!row?.profile_json || !row.generated_at) return { refresh: false, reason: null };
-  const currentSig = profileSignature(movies, tvSeries);
+  const currentSig = profileSignature(movies, tvSeries, podcasts);
   const stale = row.library_signature !== currentSig;
   // The signature format is `${count}:${hash}` — parseInt reads the count prefix.
   const priorCount = parseInt(row.library_signature, 10) || 0;
-  const countDelta = Math.abs(movies.length + tvSeries.length - priorCount);
+  const countDelta = Math.abs(movies.length + tvSeries.length + podcasts.length - priorCount);
   const generatedAtMs = Date.parse(row.generated_at) || 0;
   const newFeedback = (feedbackRows || []).filter(
     (r) => (Date.parse(r.created_at || r.updated_at) || 0) > generatedAtMs
@@ -178,13 +180,14 @@ function computeAnalytics(rows, contentType) {
     .map(([date_watched, count]) => ({ date_watched, count }))
     .sort((a, b) => (a.date_watched < b.date_watched ? 1 : -1));
 
+  const label = getContentType(contentType).plural;
   const recommendations = topGenres[0]
     ? {
         favoriteGenre: topGenres[0].genre,
         suggestions: `Explore more ${topGenres[0].genre} — your favorite so far.`,
-        message: `Based on your love for ${topGenres[0].genre} ${contentType === 'tv' ? 'TV series' : 'movies'}:`,
+        message: `Based on your love for ${topGenres[0].genre} ${label}:`,
       }
-    : { message: `Add more ${contentType === 'tv' ? 'TV series' : 'movies'} to get personalized recommendations!` };
+    : { message: `Add more ${label} to get personalized recommendations!` };
 
   return { total, avgRating, topGenres, timeline, recommendations };
 }
@@ -253,7 +256,7 @@ export const movieApi = {
     // different corners of the library; first generation stays deterministic.
     const sample = refresh === true || refresh === 'true';
 
-    const contentTypes = content === 'all' ? ['movie', 'tv'] : [content];
+    const contentTypes = content === 'all' ? [...CONTENT_TYPE_KEYS] : [content];
     const recTypes = type === 'all' ? ['similar', 'hidden_gems'] : [type];
 
     const rowsByType = {};
@@ -369,7 +372,7 @@ export const movieApi = {
     const user_id = await requireUserId();
     const rows = await parseMiloDb(file);
     const { data: existing } = await sb.from(TABLE).select('title, type').eq('user_id', user_id);
-    const existingKeys = new Set((existing || []).map((m) => `${m.title} ${m.type === 'tv' ? 'tv' : 'movie'}`));
+    const existingKeys = new Set((existing || []).map((m) => `${m.title} ${normalizeType(m.type)}`));
     return processDbRows(rows, existingKeys);
   },
 
@@ -378,7 +381,7 @@ export const movieApi = {
     const user_id = await requireUserId();
     const rows = await parseMiloDb(file);
     const { data: existing } = await sb.from(TABLE).select('title, type').eq('user_id', user_id);
-    const existingKeys = new Set((existing || []).map((m) => `${m.title} ${m.type === 'tv' ? 'tv' : 'movie'}`));
+    const existingKeys = new Set((existing || []).map((m) => `${m.title} ${normalizeType(m.type)}`));
     const result = processDbRows(rows, existingKeys);
     if (result.toImport > 0) {
       const insertRows = result.allMovies.map((m) => ({ ...m, user_id }));
@@ -401,13 +404,25 @@ export const tvApi = {
   getRecommendations: (params = {}) => movieApi.getRecommendations({ ...params, content: 'tv' }),
 };
 
+export const podcastApi = {
+  getPodcasts: (params = {}) => listRows({ ...params, type: 'podcast' }),
+  addPodcast: (podcast) => movieApi.addMovie({ ...podcast, type: 'podcast' }),
+  updatePodcast: (id, podcast) => movieApi.updateMovie(id, { ...podcast, type: 'podcast' }),
+  deletePodcast: (id) => movieApi.deleteMovie(id),
+  getAnalytics: async () => {
+    const rows = await listRows({ type: 'podcast' });
+    return computeAnalytics(rows, 'podcast');
+  },
+  getRecommendations: (params = {}) => movieApi.getRecommendations({ ...params, content: 'podcast' }),
+};
+
 export const assistantApi = {
-  async chatWithAssistant(message, model = null, movies = [], tvSeries = [], analytics = null, history = [], { onToken = null } = {}) {
+  async chatWithAssistant(message, model = null, movies = [], tvSeries = [], podcasts = [], analytics = null, history = [], { onToken = null } = {}) {
     const { chatAssistant } = await import('../ai');
     const settings = loadAISettings();
     if (model) settings.model = model;
     const tasteProfile = await loadSavedTasteProfile();
-    return chatAssistant({ message, movies, tvSeries, analytics, history, tasteProfile, settings, onToken });
+    return chatAssistant({ message, movies, tvSeries, podcasts, analytics, history, tasteProfile, settings, onToken });
   },
   async getOllamaModels() {
     return movieApi.getOllamaModels();
@@ -427,11 +442,12 @@ export const tasteApi = {
     if (error) throw new Error(error.message);
     if (!data) return { profile: null };
 
-    const [movies, tvSeries] = await Promise.all([
+    const [movies, tvSeries, podcasts] = await Promise.all([
       listRows({ type: 'movie', status: 'watched' }),
       listRows({ type: 'tv', status: 'watched' }),
+      listRows({ type: 'podcast', status: 'watched' }),
     ]);
-    const currentSignature = profileSignature(movies, tvSeries);
+    const currentSignature = profileSignature(movies, tvSeries, podcasts);
     return {
       profile: data.profile_json || null,
       model: data.model,
@@ -447,11 +463,12 @@ export const tasteApi = {
     const settings = loadAISettings();
     if (model) settings.model = model;
 
-    const [movies, tvSeries] = await Promise.all([
+    const [movies, tvSeries, podcasts] = await Promise.all([
       listRows({ type: 'movie', status: 'watched' }),
       listRows({ type: 'tv', status: 'watched' }),
+      listRows({ type: 'podcast', status: 'watched' }),
     ]);
-    if (movies.length === 0 && tvSeries.length === 0) {
+    if (movies.length === 0 && tvSeries.length === 0 && podcasts.length === 0) {
       throw new Error('Add some watched titles before analyzing your taste.');
     }
 
@@ -473,7 +490,7 @@ export const tasteApi = {
       prior = data || null;
     } catch { /* no prior profile — fine */ }
 
-    return generateAndSaveProfile({ sb, user_id, settings, movies, tvSeries, feedbackRows, prior });
+    return generateAndSaveProfile({ sb, user_id, settings, movies, tvSeries, podcasts, feedbackRows, prior });
   },
 
   // Called from the Generate flow (cloud only): regenerate the profile when the
@@ -491,26 +508,27 @@ export const tasteApi = {
         .maybeSingle();
       if (!row?.profile_json) return { refreshed: false, reason: null };
 
-      const [movies, tvSeries] = await Promise.all([
+      const [movies, tvSeries, podcasts] = await Promise.all([
         listRows({ type: 'movie', status: 'watched' }),
         listRows({ type: 'tv', status: 'watched' }),
+        listRows({ type: 'podcast', status: 'watched' }),
       ]);
       let feedbackRows = [];
       try {
         feedbackRows = await listFeedbackRows();
       } catch { /* non-fatal */ }
 
-      const { refresh, reason } = shouldAutoRefreshProfile({ row, movies, tvSeries, feedbackRows });
+      const { refresh, reason } = shouldAutoRefreshProfile({ row, movies, tvSeries, podcasts, feedbackRows });
       if (!refresh) return { refreshed: false, reason: null };
 
-      const guardKey = `${profileSignature(movies, tvSeries)}|${feedbackRows.length}`;
+      const guardKey = `${profileSignature(movies, tvSeries, podcasts)}|${feedbackRows.length}`;
       if (autoRefreshTriedFor === guardKey) return { refreshed: false, reason: null };
       autoRefreshTriedFor = guardKey;
 
       const settings = loadAISettings();
       if (model) settings.model = model;
       const res = await generateAndSaveProfile({
-        sb, user_id, settings, movies, tvSeries, feedbackRows,
+        sb, user_id, settings, movies, tvSeries, podcasts, feedbackRows,
         prior: { profile_json: row.profile_json, generated_at: row.generated_at },
       });
       return { refreshed: true, reason, profile: res.profile, generatedAt: res.generatedAt };
@@ -523,10 +541,11 @@ export const tasteApi = {
 
 // Shared by manual analyze + auto-refresh: run taste analysis with the raw
 // feedback rows and prior profile (for drift), attach the history trail, upsert.
-async function generateAndSaveProfile({ sb, user_id, settings, movies, tvSeries, feedbackRows, prior }) {
+async function generateAndSaveProfile({ sb, user_id, settings, movies, tvSeries, podcasts = [], feedbackRows, prior }) {
   const profile = await aiGenerateTasteProfile({
     movies,
     tvSeries,
+    podcasts,
     feedbackRows,
     priorProfile: prior ? compactProfileSnapshot(prior.profile_json, prior.generated_at) : null,
     settings,
@@ -537,7 +556,7 @@ async function generateAndSaveProfile({ sb, user_id, settings, movies, tvSeries,
     const oldHistory = Array.isArray(prior.profile_json.history) ? prior.profile_json.history : [];
     if (snap) profile.history = [snap, ...oldHistory].slice(0, 3);
   }
-  const signature = profileSignature(movies, tvSeries);
+  const signature = profileSignature(movies, tvSeries, podcasts);
   const nowIso = new Date().toISOString();
   const { error } = await sb.from(TASTE_TABLE).upsert(
     {

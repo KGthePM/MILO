@@ -1,10 +1,13 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { ArrowLeft, User, Star, Calendar, Film, Tv } from 'lucide-react';
+import { ArrowLeft, User, Star, Calendar, Film, Tv, Mic } from 'lucide-react';
 import { getFriendMovies } from '../api/friendsApi';
 import { getSupabase } from '../utils/supabase';
 import { FriendsProvider } from '../utils/FriendsContext';
+import { CONTENT_TYPES, ACCENT } from '../utils/contentTypes';
+
+const TAB_ICONS = { movie: Film, tv: Tv, podcast: Mic };
 
 function formatDate(d) {
   if (!d) return 'No date';
@@ -28,6 +31,9 @@ function ReadOnlyCard({ item }) {
       </div>
       {item.director && (
         <div className="text-white/60 text-xs mb-1">Director: {item.director}</div>
+      )}
+      {item.type === 'podcast' && item.host && (
+        <div className="text-white/60 text-xs mb-1">Host: {item.host}</div>
       )}
       {item.type === 'tv' && (item.num_seasons || item.total_episodes) && (
         <div className="text-white/60 text-xs mb-1">
@@ -85,9 +91,14 @@ function FriendProfilePageInner() {
     return () => { cancelled = true; };
   }, [friendId]);
 
-  const movies = useMemo(() => items.filter((i) => i.type !== 'tv'), [items]);
-  const tv = useMemo(() => items.filter((i) => i.type === 'tv'), [items]);
-  const visible = tab === 'tv' ? tv : movies;
+  // Grouped by explicit type. A `!== 'tv'` test here used to file podcasts
+  // (and anything else new) under Movies.
+  const byType = useMemo(() => {
+    const groups = Object.fromEntries(Object.keys(CONTENT_TYPES).map((k) => [k, []]));
+    for (const i of items) (groups[i.type] || groups.movie).push(i);
+    return groups;
+  }, [items]);
+  const visible = byType[tab] || byType.movie;
   const name = profile?.display_name || (profile?.username ? `@${profile.username}` : 'Friend');
 
   return (
@@ -115,22 +126,21 @@ function FriendProfilePageInner() {
         </motion.header>
 
         <div className="flex gap-2 mb-4 p-1 glass rounded-xl w-fit">
-          <button
-            onClick={() => setTab('movie')}
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium ${
-              tab === 'movie' ? 'bg-neon-cyan/20 text-neon-cyan' : 'text-white/70 hover:text-white'
-            }`}
-          >
-            <Film size={16} /> Movies ({movies.length})
-          </button>
-          <button
-            onClick={() => setTab('tv')}
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium ${
-              tab === 'tv' ? 'bg-neon-magenta/20 text-neon-magenta' : 'text-white/70 hover:text-white'
-            }`}
-          >
-            <Tv size={16} /> TV ({tv.length})
-          </button>
+          {Object.values(CONTENT_TYPES).map((ct) => {
+            const Icon = TAB_ICONS[ct.key];
+            const a = ACCENT[ct.accent];
+            return (
+              <button
+                key={ct.key}
+                onClick={() => setTab(ct.key)}
+                className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium ${
+                  tab === ct.key ? `${a.bgSoft} ${a.text}` : 'text-white/70 hover:text-white'
+                }`}
+              >
+                <Icon size={16} /> {ct.nav} ({byType[ct.key].length})
+              </button>
+            );
+          })}
         </div>
 
         {loading && <p className="text-white/50">Loading…</p>}
@@ -139,7 +149,7 @@ function FriendProfilePageInner() {
         {!loading && !error && (
           visible.length === 0 ? (
             <p className="text-white/50 text-sm text-center py-8">
-              Nothing to show. {name} hasn't shared any {tab === 'tv' ? 'TV' : 'movies'} publicly yet.
+              Nothing to show. {name} hasn't shared any {(CONTENT_TYPES[tab] || CONTENT_TYPES.movie).plural} publicly yet.
             </p>
           ) : (
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">

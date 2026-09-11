@@ -4,10 +4,12 @@ import { X, Send, Brain, Loader2, AlertCircle, Plus } from 'lucide-react';
 import { assistantApi } from '../../api/assistantApi';
 import { useMovies } from '../../utils/MovieContext';
 import { useTVSeries } from '../../utils/TVSeriesContext';
+import { usePodcasts } from '../../utils/PodcastContext';
 
 const quickActions = [
   'Find similar movies',
   'Find similar TV shows',
+  'Find similar podcasts',
   'Recommend hidden gems',
   'Analyze my taste',
   'What should I watch this weekend?'
@@ -38,15 +40,22 @@ export default function AssistantModal({ isOpen, onClose }) {
 
   const { movies, analytics: movieAnalytics } = useMovies();
   const { series, analytics: tvAnalytics } = useTVSeries();
+  const { podcasts, analytics: podcastAnalytics } = usePodcasts();
 
   const combinedMovies = movies;
   const combinedTV = series;
-  const combinedAnalytics = {
-    totalWatched: (movieAnalytics?.total || 0) + (tvAnalytics?.total || 0),
-    averageRating: movieAnalytics?.total && tvAnalytics?.total
-      ? ((movieAnalytics.avgRating * movieAnalytics.total + tvAnalytics.avgRating * tvAnalytics.total) / (movieAnalytics.total + tvAnalytics.total))
-      : (movieAnalytics?.avgRating || tvAnalytics?.avgRating || 0)
-  };
+  const combinedPodcasts = podcasts;
+  // Count-weighted average across every content type that has any rows, so
+  // adding a type can't skew the mean the way a fixed two-way fallback did.
+  const combinedAnalytics = (() => {
+    const parts = [movieAnalytics, tvAnalytics, podcastAnalytics].filter((a) => a?.total);
+    const totalWatched = parts.reduce((sum, a) => sum + a.total, 0);
+    const ratingSum = parts.reduce((sum, a) => sum + (a.avgRating || 0) * a.total, 0);
+    return {
+      totalWatched,
+      averageRating: totalWatched ? ratingSum / totalWatched : 0,
+    };
+  })();
 
   useEffect(() => {
     const fetchModels = async () => {
@@ -137,6 +146,7 @@ export default function AssistantModal({ isOpen, onClose }) {
         selectedModel,
         combinedMovies,
         combinedTV,
+        combinedPodcasts,
         combinedAnalytics,
         priorHistory,
         { onToken }

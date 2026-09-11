@@ -1,27 +1,40 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Film, Tv, LayoutGrid } from 'lucide-react';
+import { Film, Tv, Mic, LayoutGrid } from 'lucide-react';
 import { useMovies } from '../utils/MovieContext';
 import { useTVSeries } from '../utils/TVSeriesContext';
+import { usePodcasts } from '../utils/PodcastContext';
 import CombinedTimeline from '../components/timeline/CombinedTimeline';
 import FloatingCommandBar from '../components/shared/FloatingCommandBar';
+import { CONTENT_TYPES } from '../utils/contentTypes';
+
+const FILTER_ICONS = { movie: Film, tv: Tv, podcast: Mic };
 
 const FILTERS = [
   { id: 'all', label: 'All', icon: LayoutGrid },
-  { id: 'movie', label: 'Movies', icon: Film },
-  { id: 'tv', label: 'TV', icon: Tv },
+  ...Object.values(CONTENT_TYPES).map((ct) => ({
+    id: ct.key,
+    label: ct.nav,
+    icon: FILTER_ICONS[ct.key],
+  })),
 ];
+
+const watchedOnly = (rows) => rows.filter((r) => (r.status || 'watched') === 'watched');
 
 export default function TimelinePage() {
   const { movies } = useMovies();
   const { series } = useTVSeries();
+  const { podcasts } = usePodcasts();
   const [filter, setFilter] = useState('all');
 
-  const watchedMovies = movies.filter((m) => (m.status || 'watched') === 'watched');
-  const watchedSeries = series.filter((s) => (s.status || 'watched') === 'watched');
+  const byType = {
+    movie: watchedOnly(movies),
+    tv: watchedOnly(series),
+    podcast: watchedOnly(podcasts),
+  };
 
-  const shownMovies = filter === 'tv' ? [] : watchedMovies;
-  const shownSeries = filter === 'movie' ? [] : watchedSeries;
+  // 'all' shows every type; any other filter narrows to that one type.
+  const shown = filter === 'all' ? byType : { [filter]: byType[filter] || [] };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-bg-primary via-bg-secondary to-bg-primary">
@@ -36,10 +49,10 @@ export default function TimelinePage() {
               <span className="neon-text-cyan">Time</span>
               <span className="neon-text-magenta">line</span>
               <span className="text-sm md:text-base text-white/40 font-light ml-4">
-                Everything you've watched, movies and TV together
+                Everything you've watched and heard, together
               </span>
             </h1>
-            <p className="text-white/60">Your complete watch history on one timeline</p>
+            <p className="text-white/60">Your complete history on one timeline</p>
           </div>
         </motion.header>
 
@@ -70,7 +83,7 @@ export default function TimelinePage() {
             exit={{ opacity: 0, x: -20 }}
             transition={{ duration: 0.2 }}
           >
-            <CombinedTimeline movies={shownMovies} series={shownSeries} />
+            <CombinedTimeline itemsByType={shown} />
           </motion.div>
         </AnimatePresence>
       </div>

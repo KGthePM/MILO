@@ -138,7 +138,7 @@ router.get('/movies', (req, res) => {
 });
 
 router.post('/movies', (req, res) => {
-  const { title, rating, genre, date_watched, notes, director, release_year, type, num_seasons, total_episodes, status } = req.body;
+  const { title, rating, genre, date_watched, notes, director, release_year, type, num_seasons, total_episodes, status, host, publisher, episodes_heard, artwork_url } = req.body;
   const resolvedStatus = status || 'watched';
   const resolvedType = type || 'movie';
 
@@ -178,23 +178,23 @@ router.post('/movies', (req, res) => {
       }
 
       const query = `
-        INSERT INTO movies (title, rating, genre, date_watched, notes, director, release_year, type, num_seasons, total_episodes, status)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO movies (title, rating, genre, date_watched, notes, director, release_year, type, num_seasons, total_episodes, status, host, publisher, episodes_heard, artwork_url)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `;
 
-      db.run(query, [title, ratingValue, genre, date_watched, notes, director, release_year, resolvedType, num_seasons, total_episodes, resolvedStatus], function(err) {
+      db.run(query, [title, ratingValue, genre, date_watched, notes, director, release_year, resolvedType, num_seasons, total_episodes, resolvedStatus, host, publisher, episodes_heard, artwork_url], function(err) {
         if (err) {
           res.status(500).json({ error: err.message });
           return;
         }
-        res.status(201).json({ id: this.lastID, title, rating: ratingValue, genre, date_watched, notes, director, release_year, type: resolvedType, num_seasons, total_episodes, status: resolvedStatus });
+        res.status(201).json({ id: this.lastID, title, rating: ratingValue, genre, date_watched, notes, director, release_year, type: resolvedType, num_seasons, total_episodes, status: resolvedStatus, host, publisher, episodes_heard, artwork_url });
       });
     }
   );
 });
 
 router.put('/movies/:id', (req, res) => {
-  const { title, rating, genre, date_watched, notes, director, release_year, type, num_seasons, total_episodes, status } = req.body;
+  const { title, rating, genre, date_watched, notes, director, release_year, type, num_seasons, total_episodes, status, host, publisher, episodes_heard, artwork_url } = req.body;
   const { id } = req.params;
   const resolvedStatus = status || 'watched';
 
@@ -217,11 +217,11 @@ router.put('/movies/:id', (req, res) => {
 
   const query = `
     UPDATE movies
-    SET title = ?, rating = ?, genre = ?, date_watched = ?, notes = ?, director = ?, release_year = ?, type = ?, num_seasons = ?, total_episodes = ?, status = ?
+    SET title = ?, rating = ?, genre = ?, date_watched = ?, notes = ?, director = ?, release_year = ?, type = ?, num_seasons = ?, total_episodes = ?, status = ?, host = ?, publisher = ?, episodes_heard = ?, artwork_url = ?
     WHERE id = ?
   `;
 
-  db.run(query, [title, ratingValue, genre, date_watched, notes, director, release_year, type || 'movie', num_seasons, total_episodes, resolvedStatus, id], function(err) {
+  db.run(query, [title, ratingValue, genre, date_watched, notes, director, release_year, type || 'movie', num_seasons, total_episodes, resolvedStatus, host, publisher, episodes_heard, artwork_url, id], function(err) {
     if (err) {
       res.status(500).json({ error: err.message });
       return;
@@ -230,7 +230,7 @@ router.put('/movies/:id', (req, res) => {
       res.status(404).json({ error: 'Movie not found' });
       return;
     }
-    res.json({ id, title, rating: ratingValue, genre, date_watched, notes, director, release_year, type: type || 'movie', num_seasons, total_episodes, status: resolvedStatus });
+    res.json({ id, title, rating: ratingValue, genre, date_watched, notes, director, release_year, type: type || 'movie', num_seasons, total_episodes, status: resolvedStatus, host, publisher, episodes_heard, artwork_url });
   });
 });
 
@@ -461,7 +461,7 @@ router.get('/recommendations', async (req, res) => {
   const shouldRefresh = refresh === 'true';
 
   try {
-    const contentTypes = content === 'all' ? ['movie', 'tv'] : [content];
+    const contentTypes = content === 'all' ? ['movie', 'tv', 'podcast'] : [content];
     const recommendationTypes = type === 'all' ? ['similar', 'hidden_gems'] : [type];
 
     const query = `SELECT * FROM movies WHERE type IN (${contentTypes.map(() => '?').join(',')}) AND status = 'watched'`;
@@ -530,6 +530,10 @@ router.get('/recommendations', async (req, res) => {
     } else {
       const fallbackRecommendations = content === 'tv'
         ? generateTVRecommendationsFallback(userMovies)
+        : content === 'podcast'
+        // No canned podcast list — the `simple` source below carries the real
+        // error, which is more useful than a hardcoded guess.
+        ? []
         : generateRecommendationsFallback(userMovies);
 
       res.json({
@@ -581,12 +585,13 @@ function rowToProfileResponse(row, currentSignature) {
 
 router.get('/taste-profile', async (req, res) => {
   try {
-    const [movies, tvSeries, row] = await Promise.all([
+    const [movies, tvSeries, podcasts, row] = await Promise.all([
       fetchWatched('movie'),
       fetchWatched('tv'),
+      fetchWatched('podcast'),
       readTasteProfile('all'),
     ]);
-    const currentSignature = tasteAnalyzer.profileSignature(movies, tvSeries);
+    const currentSignature = tasteAnalyzer.profileSignature(movies, tvSeries, podcasts);
     res.json(rowToProfileResponse(row, currentSignature));
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -596,13 +601,17 @@ router.get('/taste-profile', async (req, res) => {
 router.post('/taste-profile', async (req, res) => {
   const { model } = req.body || {};
   try {
-    const [movies, tvSeries] = await Promise.all([fetchWatched('movie'), fetchWatched('tv')]);
-    if (movies.length === 0 && tvSeries.length === 0) {
+    const [movies, tvSeries, podcasts] = await Promise.all([
+      fetchWatched('movie'),
+      fetchWatched('tv'),
+      fetchWatched('podcast'),
+    ]);
+    if (movies.length === 0 && tvSeries.length === 0 && podcasts.length === 0) {
       return res.status(400).json({ error: 'Add some watched titles before analyzing your taste.' });
     }
 
     const { profile, model: usedModel, signature } =
-      await tasteAnalyzer.generateTasteProfile(movies, tvSeries, model);
+      await tasteAnalyzer.generateTasteProfile(movies, tvSeries, podcasts, model);
 
     await new Promise((resolve, reject) => {
       db.run(
@@ -627,7 +636,7 @@ router.post('/taste-profile', async (req, res) => {
 });
 
 router.post('/assistant/chat', async (req, res) => {
-  const { message, model, movies, tvSeries, analytics, history } = req.body;
+  const { message, model, movies, tvSeries, podcasts, analytics, history } = req.body;
 
   if (!message || !message.trim()) {
     return res.status(400).json({ error: 'Message is required' });
@@ -639,7 +648,7 @@ router.post('/assistant/chat', async (req, res) => {
     if (tasteRow) {
       try { tasteProfile = JSON.parse(tasteRow.profile_json); } catch { tasteProfile = null; }
     }
-    const result = await assistant.generateResponse(message, movies || [], tvSeries || [], analytics || null, model, history || [], tasteProfile);
+    const result = await assistant.generateResponse(message, movies || [], tvSeries || [], podcasts || [], analytics || null, model, history || [], tasteProfile);
     res.json(result);
   } catch (error) {
     console.error('MILO assistant error:', error.message);
@@ -668,8 +677,10 @@ router.get('/analytics', (req, res) => {
   })))
   .then(([total, avgRating, genreData, timelineData]) => {
     const topGenres = genreData.slice(0, 5);
-    const recommendations = type === 'tv' 
+    const recommendations = type === 'tv'
       ? generateTVRecommendations(genreData)
+      : type === 'podcast'
+      ? generatePodcastRecommendations(genreData)
       : generateRecommendations(genreData);
 
     res.json({
@@ -734,6 +745,38 @@ function generateTVRecommendations(genreData) {
     favoriteGenre: topGenre,
     suggestions: tvGenreBasedRecommendations[topGenre] || 'Explore different genres to get recommendations!',
     message: `Based on your love for ${topGenre} TV series, you might enjoy:`
+  };
+}
+
+function generatePodcastRecommendations(genreData) {
+  if (!genreData || genreData.length === 0) {
+    return { message: 'Add more podcasts to get personalized recommendations!' };
+  }
+
+  const topGenre = genreData[0].genre;
+  const podcastGenreBasedRecommendations = {
+    'True Crime': 'Serial, Criminal, Bear Brook, In the Dark, Suspect',
+    'Technology': 'Search Engine, Hard Fork, Darknet Diaries, Acquired, Lex Fridman',
+    'News': 'The Daily, Up First, Today Explained, Post Reports, The Journal',
+    'Society & Culture': 'This American Life, Radiolab, Heavyweight, Reply All, 99% Invisible',
+    'History': 'Hardcore History, The Rest Is History, You Must Remember This, Revolutions',
+    'Business': 'Acquired, How I Built This, Planet Money, Odd Lots, Business Wars',
+    'Science': 'Radiolab, Ologies, Short Wave, Hidden Brain, StarTalk',
+    'Comedy': 'Comedy Bang Bang, My Brother My Brother and Me, SmartLess, Conan O\u2019Brien Needs a Friend',
+    'Health & Fitness': 'Huberman Lab, Maintenance Phase, The Peter Attia Drive, Ten Percent Happier',
+    'Sports': 'The Bill Simmons Podcast, Pardon My Take, The Ringer NFL Show, Men in Blazers',
+    'Arts': 'Song Exploder, Fresh Air, The Great Women Artists, Articles of Interest',
+    'Music': 'Song Exploder, Dissect, Switched on Pop, Broken Record',
+    'Education': 'Stuff You Should Know, Freakonomics Radio, TED Radio Hour, The Knowledge Project',
+    'Fiction': 'Welcome to Night Vale, The Magnus Archives, Limetown, Homecoming',
+    'TV & Film': 'The Rewatchables, You Must Remember This, Blank Check, Film Comment',
+    'Leisure': 'The Sporkful, Gastropod, No Such Thing As A Fish, Home Cooking',
+  };
+
+  return {
+    favoriteGenre: topGenre,
+    suggestions: podcastGenreBasedRecommendations[topGenre] || 'Explore different genres to get recommendations!',
+    message: `Based on your love for ${topGenre} podcasts, you might enjoy:`
   };
 }
 

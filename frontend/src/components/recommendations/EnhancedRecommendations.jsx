@@ -8,12 +8,27 @@ import { api as feedbackApi } from '../../api/feedbackApi';
 import { normalizeTitle } from '../../ai/prompt';
 import { useMovies } from '../../utils/MovieContext';
 import { useTVSeries } from '../../utils/TVSeriesContext';
+import { usePodcasts } from '../../utils/PodcastContext';
 import { IS_CLOUD } from '../../utils/mode';
 import { loadAISettings, getActiveKey } from '../../utils/aiSettings';
 import { PRESETS } from '../../recommendations/presets';
+import { getContentType, accentFor } from '../../utils/contentTypes';
+import { podcastApi } from '../../api/podcastApi';
 import AddMovieModal from '../movies/AddMovieModal';
 import AddTVSeriesModal from '../tv/AddTVSeriesModal';
+import AddPodcastModal from '../podcasts/AddPodcastModal';
 import AIProvidersHelpModal from '../settings/AIProvidersHelpModal';
+
+// Per-content-type wiring. These replace the `contentType === 'tv' ? … : …`
+// ternaries that used to run through this file, which silently treated any
+// third type as a movie.
+const API_BY_TYPE = { movie: movieApi, tv: tvApi, podcast: podcastApi };
+const ADD_BY_TYPE = {
+  movie: (payload) => movieApi.addMovie(payload),
+  tv: (payload) => tvApi.addSeries(payload),
+  podcast: (payload) => podcastApi.addPodcast(payload),
+};
+const SEEN_IT_MODALS = { movie: AddMovieModal, tv: AddTVSeriesModal, podcast: AddPodcastModal };
 
 function formatWhen(ts) {
   if (!ts) return '';
@@ -76,9 +91,14 @@ export default function EnhancedRecommendations({ contentType = 'movie' }) {
   const [seenItRec, setSeenItRec] = useState(null);
   const { fetchMovies, deleteMovie } = useMovies();
   const { fetchSeries, deleteSeries } = useTVSeries();
+  const { fetchPodcasts, deletePodcast } = usePodcasts();
 
-  const contentLabel = contentType === 'tv' ? 'TV' : 'Movies';
-  const accent = contentType === 'tv' ? 'magenta' : 'cyan';
+  // Context-bound counterparts to the module-level maps above.
+  const REMOVE_BY_TYPE = { movie: deleteMovie, tv: deleteSeries, podcast: deletePodcast };
+  const REFRESH_BY_TYPE = { movie: fetchMovies, tv: fetchSeries, podcast: fetchPodcasts };
+
+  const contentLabel = getContentType(contentType).nav;
+  const A = accentFor(contentType);
 
   const loadModels = async () => {
     setModelsLoading(true);
@@ -118,7 +138,7 @@ export default function EnhancedRecommendations({ contentType = 'movie' }) {
   const fetchRecommendations = async (refresh = false) => {
     if (refresh) setRefreshing(true); else setLoading(true);
     try {
-      const api = contentType === 'tv' ? tvApi : movieApi;
+      const api = API_BY_TYPE[contentType] || API_BY_TYPE.movie;
       const params = {
         type: activePreset ?? (filter === 'all' ? 'all' : filter),
         content: contentType,
@@ -193,8 +213,7 @@ export default function EnhancedRecommendations({ contentType = 'movie' }) {
       // (never touches a pre-existing watchlist entry).
       const removeAdded = async () => {
         if (current?.feedback === 'interested' && current.addedId) {
-          if (ct === 'tv') await deleteSeries(current.addedId);
-          else await deleteMovie(current.addedId);
+          await REMOVE_BY_TYPE[ct]?.(current.addedId);
         }
       };
 
@@ -231,10 +250,9 @@ export default function EnhancedRecommendations({ contentType = 'movie' }) {
             release_year: rec.year ? Number(rec.year) || null : null,
             status: 'to_watch',
           };
-          const created = ct === 'tv' ? await tvApi.addSeries(payload) : await movieApi.addMovie(payload);
+          const created = await ADD_BY_TYPE[ct](payload);
           addedId = created?.id ?? null;
-          if (ct === 'tv') await fetchSeries();
-          else await fetchMovies();
+          await REFRESH_BY_TYPE[ct]();
         } catch (e) {
           if (e?.status !== 409) throw e; // already in library — treat as success
         }
@@ -314,11 +332,11 @@ export default function EnhancedRecommendations({ contentType = 'movie' }) {
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        className={`glass rounded-2xl p-6 neon-border-${accent}`}
+        className={`glass rounded-2xl p-6 ${A.border}`}
       >
         <div className="flex items-center gap-3 mb-6">
-          <Sparkles className={`text-${accent}`} size={24} />
-          <h2 className={`text-xl font-bold neon-text-${accent}`}>
+          <Sparkles className={A.text} size={24} />
+          <h2 className={`text-xl font-bold ${A.glow} ${A.text}`}>
             Smart Recommendations
           </h2>
           <button
@@ -331,14 +349,14 @@ export default function EnhancedRecommendations({ contentType = 'movie' }) {
           </button>
         </div>
         <div className="flex flex-col items-center text-center py-8 gap-4">
-          <Sparkles size={48} className={`text-${accent} opacity-60`} />
+          <Sparkles size={48} className={`${A.text} opacity-60`} />
           <p className="text-white/80 max-w-md leading-relaxed">
             Smart Recommendations analyses your personal watch history and uses a local AI model to find patterns in your ratings — then surfaces titles you're likely to love, from similar picks to hidden gems you might have missed.
           </p>
           <p className="text-white/40 text-sm">Pick a model, then hit Generate. Results are cached for 24 hours.</p>
           <button
             onClick={handleStart}
-            className={`mt-2 flex items-center gap-2 px-6 py-3 rounded-xl bg-${accent}/20 border border-${accent}/40 hover:bg-${accent}/30 hover:border-${accent}/70 transition-all font-semibold text-white`}
+            className={`mt-2 flex items-center gap-2 px-6 py-3 rounded-xl border transition-all font-semibold text-white ${A.btnPrimary}`}
           >
             <Sparkles size={18} />
             Get Recommendations
@@ -353,12 +371,12 @@ export default function EnhancedRecommendations({ contentType = 'movie' }) {
     <motion.div
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
-      className={`glass rounded-2xl p-6 neon-border-${accent}`}
+      className={`glass rounded-2xl p-6 ${A.border}`}
     >
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-3">
-          <Sparkles className={`text-${accent}`} size={24} />
-          <h2 className={`text-xl font-bold neon-text-${accent}`}>
+          <Sparkles className={A.text} size={24} />
+          <h2 className={`text-xl font-bold ${A.glow} ${A.text}`}>
             {contentLabel} Recommendations
           </h2>
           <button
@@ -376,7 +394,7 @@ export default function EnhancedRecommendations({ contentType = 'movie' }) {
             disabled={refreshing || !canGenerate}
             className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-black/30 hover:bg-black/50 transition-all disabled:opacity-50"
           >
-            <RefreshCw className={`text-${accent} ${refreshing ? 'animate-spin' : ''}`} size={16} />
+            <RefreshCw className={`${A.text} ${refreshing ? 'animate-spin' : ''}`} size={16} />
             <span className="text-white/70 text-sm">Refresh</span>
           </button>
         )}
@@ -393,7 +411,7 @@ export default function EnhancedRecommendations({ contentType = 'movie' }) {
               title={p.directive}
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-xs font-medium transition-all ${
                 active
-                  ? `bg-${accent}/25 border-${accent}/60 text-white`
+                  ? `${A.chipActive} text-white`
                   : 'bg-black/20 border-white/10 text-white/60 hover:border-white/30 hover:text-white'
               }`}
             >
@@ -440,7 +458,7 @@ export default function EnhancedRecommendations({ contentType = 'movie' }) {
         <button
           onClick={handleGenerate}
           disabled={!canGenerate}
-          className={`flex items-center gap-2 px-4 py-1.5 rounded-lg bg-${accent}/20 border border-${accent}/40 hover:bg-${accent}/30 hover:border-${accent}/70 disabled:opacity-40 disabled:cursor-not-allowed transition-all text-white text-sm font-semibold`}
+          className={`flex items-center gap-2 px-4 py-1.5 rounded-lg border disabled:opacity-40 disabled:cursor-not-allowed transition-all text-white text-sm font-semibold ${A.btnPrimary}`}
         >
           {loading ? <Loader2 size={14} className="animate-spin" /> : <Play size={14} />}
           {hasGenerated ? 'Generate Again' : 'Generate'}
@@ -450,7 +468,7 @@ export default function EnhancedRecommendations({ contentType = 'movie' }) {
       <div className="mb-4 px-3 py-2.5 rounded-lg bg-black/20 border border-white/10">
         <div className="flex items-center justify-between gap-3">
           <div className="flex items-center gap-2 min-w-0">
-            <Brain size={16} className={`text-${accent} shrink-0`} />
+            <Brain size={16} className={`${A.text} shrink-0`} />
             <div className="min-w-0">
               <p className="text-white/80 text-sm font-medium">Taste Analysis</p>
               {tasteLoading || autoRefreshing ? (
@@ -474,7 +492,7 @@ export default function EnhancedRecommendations({ contentType = 'movie' }) {
           <button
             onClick={handleAnalyze}
             disabled={!canAnalyze}
-            className={`flex items-center gap-2 px-3 py-1.5 rounded-lg bg-${accent}/15 border border-${accent}/30 hover:bg-${accent}/25 hover:border-${accent}/60 disabled:opacity-40 disabled:cursor-not-allowed transition-all text-white text-xs font-semibold shrink-0`}
+            className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border disabled:opacity-40 disabled:cursor-not-allowed transition-all text-white text-xs font-semibold shrink-0 ${A.btnSmall}`}
           >
             {tasteLoading ? <Loader2 size={13} className="animate-spin" /> : <Brain size={13} />}
             {tasteProfile ? 'Re-analyze' : 'Analyze my taste'}
@@ -485,7 +503,7 @@ export default function EnhancedRecommendations({ contentType = 'movie' }) {
         )}
         {tasteProfile?.recentShift && !tasteLoading && (
           <p className="text-white/50 text-xs mt-1 leading-relaxed">
-            <span className={`text-${accent} font-medium`}>MILO noticed:</span> {tasteProfile.recentShift}
+            <span className={`${A.text} font-medium`}>MILO noticed:</span> {tasteProfile.recentShift}
           </p>
         )}
         {tasteError && (
@@ -520,7 +538,7 @@ export default function EnhancedRecommendations({ contentType = 'movie' }) {
 
       {!hasGenerated && !modelsError && (
         <div className="text-center py-8 text-white/50">
-          <Sparkles className={`mx-auto mb-2 text-${accent} opacity-60`} size={32} />
+          <Sparkles className={`mx-auto mb-2 ${A.text} opacity-60`} size={32} />
           <p>Choose a model and hit Generate to get personalized recommendations.</p>
         </div>
       )}
@@ -603,7 +621,7 @@ export default function EnhancedRecommendations({ contentType = 'movie' }) {
                           {rec.genre && (
                             <>
                               <span className="text-white/30">•</span>
-                              <span className={`text-${contentType === 'tv' ? 'neon-magenta' : 'neon-cyan'} text-sm`}>{rec.genre}</span>
+                              <span className={`${A.text} text-sm`}>{rec.genre}</span>
                             </>
                           )}
                         </div>
@@ -613,7 +631,7 @@ export default function EnhancedRecommendations({ contentType = 'movie' }) {
                           <motion.div
                             initial={{ width: 0 }}
                             animate={{ width: `${rec.confidence * 10}%` }}
-                            className={`h-full bg-gradient-to-r from-${contentType === 'tv' ? 'magenta' : 'cyan'}-500 to-purple-500`}
+                            className={`h-full bg-gradient-to-r ${A.barGrad}`}
                           />
                         </div>
                         <span className="text-white/50 text-xs ml-1">{rec.confidence}/10</span>
@@ -625,7 +643,7 @@ export default function EnhancedRecommendations({ contentType = 'movie' }) {
                         <button
                           onClick={() => handleFeedback(rec, 'interested')}
                           disabled={fbBusy}
-                          className={`${fbBtnBase} ${fbActive === 'interested' ? `bg-${accent}/20 border-${accent}/40 text-white` : fbBtnIdle}`}
+                          className={`${fbBtnBase} ${fbActive === 'interested' ? `${A.fbActive} text-white` : fbBtnIdle}`}
                         >
                           <ThumbsUp size={12} />
                           {fbActive === 'interested' ? 'Added to watchlist' : 'Interested'}
@@ -662,32 +680,22 @@ export default function EnhancedRecommendations({ contentType = 'movie' }) {
         </>
       )}
 
-      {seenItRec && contentType !== 'tv' && (
-        <AddMovieModal
-          key={seenItRec.title}
-          isOpen={true}
-          onClose={() => setSeenItRec(null)}
-          prefill={{
-            title: seenItRec.title,
-            genre: seenItRec.genre || '',
-            release_year: seenItRec.year ? String(seenItRec.year) : '',
-            status: 'watched',
-          }}
-        />
-      )}
-      {seenItRec && contentType === 'tv' && (
-        <AddTVSeriesModal
-          key={seenItRec.title}
-          isOpen={true}
-          onClose={() => setSeenItRec(null)}
-          prefill={{
-            title: seenItRec.title,
-            genre: seenItRec.genre || '',
-            release_year: seenItRec.year ? String(seenItRec.year) : '',
-            status: 'watched',
-          }}
-        />
-      )}
+      {seenItRec && (() => {
+        const SeenItModal = SEEN_IT_MODALS[contentType] || SEEN_IT_MODALS.movie;
+        return (
+          <SeenItModal
+            key={seenItRec.title}
+            isOpen={true}
+            onClose={() => setSeenItRec(null)}
+            prefill={{
+              title: seenItRec.title,
+              genre: seenItRec.genre || '',
+              release_year: seenItRec.year ? String(seenItRec.year) : '',
+              status: 'watched',
+            }}
+          />
+        );
+      })()}
       <AIProvidersHelpModal isOpen={isHelpOpen} onClose={() => setIsHelpOpen(false)} />
     </motion.div>
   );

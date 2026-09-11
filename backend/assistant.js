@@ -4,11 +4,12 @@ const http = require('http');
 const { formatTasteProfileForPrompt } = require('./ollama-recommender');
 
 // Build context string from user data
-function buildContext(movies = [], tvSeries = [], analytics = null, tasteProfile = null) {
+function buildContext(movies = [], tvSeries = [], podcasts = [], analytics = null, tasteProfile = null) {
   movies = movies.filter(m => (m.status || 'watched') === 'watched');
   tvSeries = tvSeries.filter(t => (t.status || 'watched') === 'watched');
+  podcasts = podcasts.filter(p => (p.status || 'watched') === 'watched');
 
-  let context = 'User viewing history:\n\n';
+  let context = 'User library:\n\n';
 
   if (movies.length > 0) {
     const topMovies = movies
@@ -38,6 +39,21 @@ function buildContext(movies = [], tvSeries = [], analytics = null, tasteProfile
     if (tvGenres.length > 0) context += `\nFavorite TV genres: ${tvGenres.join(', ')}\n`;
   }
 
+  if (podcasts.length > 0) {
+    const topPodcasts = podcasts
+      .sort((a, b) => b.rating - a.rating)
+      .slice(0, 10)
+      .map(p => `${p.title} (${p.rating}/10${p.genre ? ', ' + p.genre : ''}${p.host ? ', hosted by ' + p.host : ''})`)
+      .join('\n- ');
+
+    const podcastGenres = [...new Set(podcasts.map(p => p.genre).filter(Boolean))];
+    const hosts = [...new Set(podcasts.map(p => p.host).filter(Boolean))];
+
+    context += `\nTop rated podcasts:\n- ${topPodcasts}\n`;
+    if (podcastGenres.length > 0) context += `\nFavorite podcast genres: ${podcastGenres.join(', ')}\n`;
+    if (hosts.length > 0) context += `Favorite podcast hosts: ${hosts.join(', ')}\n`;
+  }
+
   if (analytics) {
     context += `\nTotal content watched: ${analytics.totalWatched || 0}\n`;
     context += `Average rating: ${analytics.averageRating?.toFixed(1) || 'N/A'}/10\n`;
@@ -62,18 +78,18 @@ function formatHistory(history = []) {
 
 // Build prompt for MILO
 function buildPrompt(userMessage, context, history = []) {
-  const systemPrompt = `You are MILO (Movie Intelligence & Learning Overseer), a sophisticated AI assistant for Cine-metric, a personal movie and TV tracking application.
+  const systemPrompt = `You are MILO (Movie Intelligence & Learning Overseer), a sophisticated AI assistant for Cine-metric, a personal movie, TV, and podcast tracking application.
 
 Your personality:
 - Professional, knowledgeable, and slightly witty
 - Helpful and concise in your responses
-- Deeply passionate about movies and TV shows
+- Deeply passionate about movies, TV shows, and podcasts
 - Like a friendly film critic or knowledgeable cinema enthusiast
 
 Your capabilities:
-- Provide personalized recommendations based on viewing history
+- Provide personalized recommendations based on their watching and listening history
 - Analyze user preferences and patterns
-- Suggest similar content based on specific movies/TV shows
+- Suggest similar content based on specific movies, TV shows, or podcasts
 - Help discover hidden gems matching their taste
 - Answer questions about their viewing habits
 
@@ -164,14 +180,14 @@ async function callOllama(prompt, systemPrompt, model) {
 }
 
 // Generate response from MILO
-async function generateResponse(message, movies, tvSeries, analytics, model, history = [], tasteProfile = null) {
+async function generateResponse(message, movies, tvSeries, podcasts, analytics, model, history = [], tasteProfile = null) {
   const resolvedModel = model || process.env.OLLAMA_MODEL;
   if (!resolvedModel) {
     throw new Error('No model specified. Pick one from the dropdown.');
   }
 
   try {
-    const context = buildContext(movies, tvSeries, analytics, tasteProfile);
+    const context = buildContext(movies, tvSeries, podcasts, analytics, tasteProfile);
     const { systemPrompt, userPrompt } = buildPrompt(message, context, history);
     const response = await callOllama(userPrompt, systemPrompt, resolvedModel);
 

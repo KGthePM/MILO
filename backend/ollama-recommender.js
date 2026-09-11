@@ -204,8 +204,8 @@ function buildLibraryDigest(userMovies, contentLabel) {
 // are mirrored verbatim in frontend/src/ai/prompt.js. Keep the two in sync.
 // ---------------------------------------------------------------------------
 
-function buildTasteAnalysisPrompt(digest, contentLabel = 'movies & TV') {
-  const systemPrompt = `You are a film and television taste analyst. Study the user's library digest and compile a concise, structured profile of their taste.
+function buildTasteAnalysisPrompt(digest, contentLabel = 'movies, TV & podcasts') {
+  const systemPrompt = `You are a media taste analyst covering film, television, and podcasts. Study the user's library digest and compile a concise, structured profile of their taste.
 
 Base every field strictly on the evidence in the digest — especially what they rate highly versus poorly. Do not invent facts. Be specific and vivid, not generic.
 
@@ -221,7 +221,7 @@ Return ONLY valid JSON in this exact shape:
   "dislikes": ["string"],
   "patterns": ["string"],
   "hiddenGemAffinity": "string",
-  "movieVsTV": "string"
+  "mediumComparison": "string"
 }`;
 
   const userPrompt = `${digest}
@@ -231,7 +231,7 @@ Analyze my ${contentLabel} taste and return the JSON profile described. Focus on
 - What my lowest-rated titles reveal about what to steer away from (dislikes)
 - Recurring themes, styles, directors, and eras
 - Patterns (e.g. rating auteur work above box-office hits) and any hidden-gem affinity
-- How my movie taste compares to my TV taste`;
+- How my taste differs across the media I track (movies, TV, podcasts) — only for those present in the digest`;
 
   return { systemPrompt, userPrompt };
 }
@@ -321,7 +321,8 @@ function formatTasteProfileForPrompt(profile) {
   if (Array.isArray(profile.patterns) && profile.patterns.length)
     lines.push(`Patterns: ${profile.patterns.join('; ')}`);
   if (profile.hiddenGemAffinity) lines.push(`Hidden-gem affinity: ${profile.hiddenGemAffinity}`);
-  if (profile.movieVsTV) lines.push(`Movie vs TV: ${profile.movieVsTV}`);
+  const mediumComparison = profile.mediumComparison || profile.movieVsTV;
+  if (mediumComparison) lines.push(`Across media: ${mediumComparison}`);
   if (!lines.length) return '';
   return `Here is my saved taste profile (a distilled read of my library — treat it as the primary guide):\n${lines.join('\n')}`;
 }
@@ -350,13 +351,22 @@ function formatRecFeedbackForPrompt(feedback) {
 }
 
 // Build recommendation prompt based on type
+// Per-content-type prompt wording. Mirrored in the counterpart file
+// (backend/ollama-recommender.js <-> frontend/src/ai/prompt.js) — keep in sync.
+const CONTENT_PROMPT_LABELS = {
+  movie: { label: 'movies', history: 'viewing history', consumed: 'watched' },
+  tv: { label: 'TV series', history: 'viewing history', consumed: 'watched' },
+  podcast: { label: 'podcasts', history: 'listening history', consumed: 'listened to' },
+};
+
 function buildRecommendationPrompt(userMovies, type, contentType, options = {}) {
-  const contentLabel = contentType === 'tv' ? 'TV series' : 'movies';
+  const { label: contentLabel, history: historyLabel, consumed: consumedVerb } =
+    CONTENT_PROMPT_LABELS[contentType] || CONTENT_PROMPT_LABELS.movie;
   const extraExclusions = Array.isArray(options.extraExclusions) ? options.extraExclusions : [];
 
-  let systemPrompt = `You are a ${contentLabel} recommendation expert. Analyze the user's viewing history and provide personalized recommendations.
+  let systemPrompt = `You are a ${contentLabel} recommendation expert. Analyze the user's ${historyLabel} and provide personalized recommendations.
 
-Never recommend a title the user has already watched.
+Never recommend a title the user has already ${consumedVerb}.
 
 Return ONLY valid JSON in this format:
 {
@@ -418,7 +428,7 @@ Return ONLY valid JSON in this format:
   const feedbackNorm = new Set([...fbNotForMe, ...fbInterested, ...fbSeenIt].map(normalizeTitle));
   const shownExclusions = extraExclusions.filter(t => !feedbackNorm.has(normalizeTitle(t)));
 
-  let exclusionBlock = `\n\nIMPORTANT: I have already watched the following ${contentLabel}. Do NOT recommend any of these, or any obvious re-releases / remasters / alternate cuts / sequels-I've-already-seen of them:\n\n${watchedTitlesList}\n\nReturn only titles I have NOT seen.`;
+  let exclusionBlock = `\n\nIMPORTANT: I have already ${consumedVerb} the following ${contentLabel}. Do NOT recommend any of these, or any obvious re-releases / remasters / alternate cuts / sequels-I've-already-seen of them:\n\n${watchedTitlesList}\n\nReturn only titles I have NOT seen.`;
   if (shownExclusions.length) {
     exclusionBlock += `\n\nAlso do NOT recommend any of these — I was just shown them and want something new:\n${shownExclusions.map(t => `- ${t}`).join('\n')}`;
   }

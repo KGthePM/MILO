@@ -1,13 +1,26 @@
 import { motion } from 'framer-motion';
-import { Clock, Film, Tv } from 'lucide-react';
+import { Clock, Film, Tv, Mic } from 'lucide-react';
 import MovieCard from '../movies/MovieCard';
 import SeriesCard from '../tv/SeriesCard';
+import PodcastCard from '../podcasts/PodcastCard';
+import { CONTENT_TYPES, ACCENT } from '../../utils/contentTypes';
 
-export default function CombinedTimeline({ movies = [], series = [] }) {
-  const items = [
-    ...movies.map((m) => ({ ...m, _type: 'movie' })),
-    ...series.map((s) => ({ ...s, _type: 'tv' })),
-  ]
+// Per-type badge + card renderer. Keyed by content type so adding a fourth
+// type is one entry here rather than another branch in the JSX below.
+const RENDERERS = {
+  movie: { icon: Film, badge: 'Movie', render: (item) => <MovieCard movie={item} /> },
+  tv: { icon: Tv, badge: 'TV', render: (item) => <SeriesCard series={item} /> },
+  podcast: { icon: Mic, badge: 'Podcast', render: (item) => <PodcastCard podcast={item} /> },
+};
+
+/**
+ * @param {{ itemsByType: Record<string, Array> }} props
+ *   Map of content-type key -> rows to show. Types omitted (or empty) are
+ *   simply not rendered, which is how the page-level filter works.
+ */
+export default function CombinedTimeline({ itemsByType = {} }) {
+  const items = Object.entries(itemsByType)
+    .flatMap(([type, rows]) => (rows || []).map((r) => ({ ...r, _type: type })))
     .filter((item) => item.date_watched)
     .sort((a, b) => {
       const [yearA, monthA, dayA] = b.date_watched.split('-');
@@ -17,9 +30,7 @@ export default function CombinedTimeline({ movies = [], series = [] }) {
 
   const groupedItems = items.reduce((acc, item) => {
     const date = item.date_watched;
-    if (!acc[date]) {
-      acc[date] = [];
-    }
+    if (!acc[date]) acc[date] = [];
     acc[date].push(item);
     return acc;
   }, {});
@@ -60,30 +71,25 @@ export default function CombinedTimeline({ movies = [], series = [] }) {
                 });
               })()}
             </h3>
-            <p className="text-sm text-white/50">
-              {dayItems.length} watched
-            </p>
+            <p className="text-sm text-white/50">{dayItems.length} logged</p>
           </div>
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {dayItems.map((item) => (
-              <div key={`${item._type}-${item.id}`} className="relative">
-                <div
-                  className={`absolute top-2 right-2 z-10 flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium backdrop-blur-sm ${
-                    item._type === 'movie'
-                      ? 'bg-neon-cyan/20 text-neon-cyan border border-neon-cyan/40'
-                      : 'bg-neon-magenta/20 text-neon-magenta border border-neon-magenta/40'
-                  }`}
-                >
-                  {item._type === 'movie' ? <Film size={11} /> : <Tv size={11} />}
-                  <span>{item._type === 'movie' ? 'Movie' : 'TV'}</span>
+            {dayItems.map((item) => {
+              const renderer = RENDERERS[item._type] || RENDERERS.movie;
+              const Icon = renderer.icon;
+              const a = ACCENT[(CONTENT_TYPES[item._type] || CONTENT_TYPES.movie).accent];
+              return (
+                <div key={`${item._type}-${item.id}`} className="relative">
+                  <div
+                    className={`absolute top-2 right-2 z-10 flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium backdrop-blur-sm border ${a.bgSoft} ${a.text} ${a.ringSoft}`}
+                  >
+                    <Icon size={11} />
+                    <span>{renderer.badge}</span>
+                  </div>
+                  {renderer.render(item)}
                 </div>
-                {item._type === 'movie' ? (
-                  <MovieCard movie={item} />
-                ) : (
-                  <SeriesCard series={item} />
-                )}
-              </div>
-            ))}
+              );
+            })}
           </div>
         </motion.div>
       ))}
@@ -92,7 +98,7 @@ export default function CombinedTimeline({ movies = [], series = [] }) {
         <div className="text-center py-12 text-white/50">
           <Clock size={48} className="mx-auto mb-4 opacity-50" />
           <p className="text-lg">No watch history yet.</p>
-          <p className="text-sm">Start adding movies and shows to see your combined timeline!</p>
+          <p className="text-sm">Start adding titles to see your combined timeline!</p>
         </div>
       )}
     </div>

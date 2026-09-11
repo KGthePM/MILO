@@ -230,13 +230,22 @@ export function formatFeedbackHistoryForAnalysis(rows, { now = Date.now(), cap =
   return block;
 }
 
+// Per-content-type prompt wording. Mirrored in the counterpart file
+// (backend/ollama-recommender.js <-> frontend/src/ai/prompt.js) — keep in sync.
+const CONTENT_PROMPT_LABELS = {
+  movie: { label: 'movies', history: 'viewing history', consumed: 'watched' },
+  tv: { label: 'TV series', history: 'viewing history', consumed: 'watched' },
+  podcast: { label: 'podcasts', history: 'listening history', consumed: 'listened to' },
+};
+
 export function buildRecommendationPrompt(userMovies, type, contentType, options = {}) {
-  const contentLabel = contentType === 'tv' ? 'TV series' : 'movies';
+  const { label: contentLabel, history: historyLabel, consumed: consumedVerb } =
+    CONTENT_PROMPT_LABELS[contentType] || CONTENT_PROMPT_LABELS.movie;
   const extraExclusions = Array.isArray(options.extraExclusions) ? options.extraExclusions : [];
 
-  let systemPrompt = `You are a ${contentLabel} recommendation expert. Analyze the user's viewing history and provide personalized recommendations.
+  let systemPrompt = `You are a ${contentLabel} recommendation expert. Analyze the user's ${historyLabel} and provide personalized recommendations.
 
-Never recommend a title the user has already watched.
+Never recommend a title the user has already ${consumedVerb}.
 
 Return ONLY valid JSON in this format:
 {
@@ -302,7 +311,7 @@ Exactly one of the recommendations — the LAST one — must be a WILDCARD: a de
   const feedbackNorm = new Set([...fbNotForMe, ...fbInterested, ...fbSeenIt].map(normalizeTitle));
   const shownExclusions = extraExclusions.filter((t) => !feedbackNorm.has(normalizeTitle(t)));
 
-  let exclusionBlock = `\n\nIMPORTANT: I have already watched the following ${contentLabel}. Do NOT recommend any of these, or any obvious re-releases / remasters / alternate cuts / sequels-I've-already-seen of them:\n\n${watchedTitlesList}\n\nReturn only titles I have NOT seen.`;
+  let exclusionBlock = `\n\nIMPORTANT: I have already ${consumedVerb} the following ${contentLabel}. Do NOT recommend any of these, or any obvious re-releases / remasters / alternate cuts / sequels-I've-already-seen of them:\n\n${watchedTitlesList}\n\nReturn only titles I have NOT seen.`;
   if (shownExclusions.length) {
     exclusionBlock += `\n\nAlso do NOT recommend any of these — I was just shown them and want something new:\n${shownExclusions.map((t) => `- ${t}`).join('\n')}`;
   }
@@ -348,8 +357,8 @@ For each, explain why it's a hidden gem that fits my taste perfectly.`;
 // are mirrored verbatim in backend/ollama-recommender.js. Keep the two in sync.
 // ---------------------------------------------------------------------------
 
-export function buildTasteAnalysisPrompt(digest, contentLabel = 'movies & TV', options = {}) {
-  const systemPrompt = `You are a film and television taste analyst. Study the user's library digest and compile a concise, structured profile of their taste.
+export function buildTasteAnalysisPrompt(digest, contentLabel = 'movies, TV & podcasts', options = {}) {
+  const systemPrompt = `You are a media taste analyst covering film, television, and podcasts. Study the user's library digest and compile a concise, structured profile of their taste.
 
 Base every field strictly on the evidence in the digest — especially what they rate highly versus poorly. Do not invent facts. Be specific and vivid, not generic.
 
@@ -365,7 +374,7 @@ Return ONLY valid JSON in this exact shape:
   "dislikes": ["string"],
   "patterns": ["string"],
   "hiddenGemAffinity": "string",
-  "movieVsTV": "string",
+  "mediumComparison": "string",
   "insights": ["2-5 meta-patterns explaining WHY they accept or reject things, e.g. 'loves high-concept sci-fi but rejects slow-paced entries'"],
   "dislikePatterns": ["recurring traits of what they reject or rate poorly"],
   "recentShift": "1 sentence on how their taste has moved lately, or null if stable",
@@ -379,7 +388,7 @@ Analyze my ${contentLabel} taste and return the JSON profile described. Focus on
 - What my lowest-rated titles reveal about what to steer away from (dislikes)
 - Recurring themes, styles, directors, and eras
 - Patterns (e.g. rating auteur work above box-office hits) and any hidden-gem affinity
-- How my movie taste compares to my TV taste
+- How my taste differs across the media I track (movies, TV, podcasts) — only for those present in the digest
 - insights: infer WHY I accept or reject things, not just what — contrast titles I reacted "Interested" to against "Not for me" ones, especially within the same genre
 - dislikePatterns: what my rejections and low ratings have in common
 - Weight my recent watches and recent reactions more heavily than older history — they reflect my taste right now
@@ -468,7 +477,8 @@ export function formatTasteProfileForPrompt(profile) {
   if (Array.isArray(profile.patterns) && profile.patterns.length)
     lines.push(`Patterns: ${profile.patterns.join('; ')}`);
   if (profile.hiddenGemAffinity) lines.push(`Hidden-gem affinity: ${profile.hiddenGemAffinity}`);
-  if (profile.movieVsTV) lines.push(`Movie vs TV: ${profile.movieVsTV}`);
+  const mediumComparison = profile.mediumComparison || profile.movieVsTV;
+  if (mediumComparison) lines.push(`Across media: ${mediumComparison}`);
   if (Array.isArray(profile.insights) && profile.insights.length)
     lines.push(`Inferred insights (WHY they accept/reject — honor these over surface genre matching): ${profile.insights.join('; ')}`);
   if (Array.isArray(profile.dislikePatterns) && profile.dislikePatterns.length)
@@ -481,8 +491,8 @@ export function formatTasteProfileForPrompt(profile) {
   return `Here is my saved taste profile (a distilled read of my library — treat it as the primary guide):\n${lines.join('\n')}`;
 }
 
-export function buildAssistantPrompt(userMessage, movies = [], tvSeries = [], analytics = null, history = [], tasteProfile = null) {
-  let context = 'User viewing history:\n\n';
+export function buildAssistantPrompt(userMessage, movies = [], tvSeries = [], podcasts = [], analytics = null, history = [], tasteProfile = null) {
+  let context = 'User library:\n\n';
 
   if (movies.length > 0) {
     const topMovies = [...movies]
@@ -514,6 +524,22 @@ export function buildAssistantPrompt(userMessage, movies = [], tvSeries = [], an
     if (tvGenres.length) context += `\nFavorite TV genres: ${tvGenres.join(', ')}\n`;
   }
 
+  if (podcasts.length > 0) {
+    const topPodcasts = [...podcasts]
+      .sort((a, b) => b.rating - a.rating)
+      .slice(0, 10)
+      .map(
+        (p) =>
+          `${p.title} (${p.rating}/10${p.genre ? ', ' + p.genre : ''}${p.host ? ', hosted by ' + p.host : ''})`
+      )
+      .join('\n- ');
+    const podcastGenres = [...new Set(podcasts.map((p) => p.genre).filter(Boolean))];
+    const hosts = [...new Set(podcasts.map((p) => p.host).filter(Boolean))];
+    context += `\nTop rated podcasts:\n- ${topPodcasts}\n`;
+    if (podcastGenres.length) context += `\nFavorite podcast genres: ${podcastGenres.join(', ')}\n`;
+    if (hosts.length) context += `Favorite podcast hosts: ${hosts.join(', ')}\n`;
+  }
+
   if (analytics) {
     context += `\nTotal content watched: ${analytics.totalWatched || 0}\n`;
     context += `Average rating: ${analytics.averageRating?.toFixed?.(1) || 'N/A'}/10\n`;
@@ -522,17 +548,17 @@ export function buildAssistantPrompt(userMessage, movies = [], tvSeries = [], an
   const profileText = formatTasteProfileForPrompt(tasteProfile);
   if (profileText) context += `\n${profileText}\n`;
 
-  const systemPrompt = `You are MILO (Movie Intelligence & Learning Overseer), a sophisticated AI assistant for a personal movie and TV tracking application.
+  const systemPrompt = `You are MILO (Movie Intelligence & Learning Overseer), a sophisticated AI assistant for a personal movie, TV, and podcast tracking application.
 
 Your personality:
 - Professional, knowledgeable, and slightly witty
 - Helpful and concise in your responses
-- Deeply passionate about movies and TV shows
+- Deeply passionate about movies, TV shows, and podcasts
 - Like a friendly film critic or knowledgeable cinema enthusiast
 
 Guidelines:
 - Keep responses focused and concise (2-4 sentences typically)
-- Be specific and personalized using their actual viewing history
+- Be specific and personalized using their actual watching and listening history
 - When recommending, explain WHY it fits their taste
 - If they have no history, suggest popular titles to get started
 - Be encouraging about their viewing journey

@@ -1,7 +1,9 @@
-import { genres } from './SearchFilter';
+import { genres as screenGenres } from './SearchFilter';
 import MobileFilterDropdown from './MobileFilterDropdown';
 
-export default function GenreFilter({ selectedGenre, onGenreChange }) {
+// `genres` defaults to the screen (movie/TV) list so existing callers are
+// unchanged; the Podcasts page passes its own list instead.
+export default function GenreFilter({ selectedGenre, onGenreChange, genres = screenGenres }) {
   const genreOptions = genres.map(genre => ({ value: genre, label: genre }));
 
   return (

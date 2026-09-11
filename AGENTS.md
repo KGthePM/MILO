@@ -4,7 +4,7 @@ Dual-mode monorepo — one React frontend, two data/AI backends selected at buil
 - `backend/` - Node.js + Express 5 + SQLite (port 3000, **local mode only** — unused in cloud)
 - `frontend/` - React 18 + Vite 5 + Tailwind, react-router-dom v7 (port 5173)
 - `movies.db` - SQLite DB, auto-created in repo root (local mode only; gitignored)
-- `supabase/migrations/` - 8 SQL migrations for cloud Postgres
+- `supabase/migrations/` - 9 SQL migrations for cloud Postgres
 - Cloud build deploys to Netlify (`frontend/netlify.toml`, SPA fallback → `/index.html`)
 
 # Startup
@@ -24,7 +24,7 @@ Both servers bind `0.0.0.0`. Frontend build: `cd frontend && npm run build` → 
 Mode is a **build-time** flag: `VITE_MILO_MODE=local` (default) | `cloud`.
 
 - `frontend/src/utils/mode.js` exports `IS_CLOUD` / `IS_LOCAL` from `import.meta.env.VITE_MILO_MODE`.
-- API clients (`movieApi.js`, `tvApi.js`, `assistantApi.js`, `tasteApi.js`, `feedbackApi.js`) are **switchers**: top-level `await import('./cloud')` if `IS_CLOUD`, else `./*.local.js` (relative `/api` fetches).
+- API clients (`movieApi.js`, `tvApi.js`, `podcastApi.js`, `assistantApi.js`, `tasteApi.js`, `feedbackApi.js`) are **switchers**: top-level `await import('./cloud')` if `IS_CLOUD`, else `./*.local.js` (relative `/api` fetches).
 - `cloud.js` calls Supabase directly from the browser; `*.local.js` hit the Express backend via the Vite `/api` proxy (`vite.config.js`: `/api` → `http://localhost:3000`).
 - `friendsApi.js` / `FriendsContext.jsx` are **cloud-only** (profiles, friend requests, friends' libraries) — no `.local.js` variant.
 - In cloud mode the backend is entirely unused; AuthGate wraps the app with Supabase email/password auth.
@@ -33,19 +33,21 @@ Mode is a **build-time** flag: `VITE_MILO_MODE=local` (default) | `cloud`.
 
 Single `movies` table, created + auto-migrated on backend startup (`backend/database.js`).
 
-`movies` columns: `id, title, rating (REAL 1-10), genre, date_watched, notes, director, release_year, type ('movie'|'tv'), num_seasons, total_episodes, status (default 'watched'), created_at`. The `type` column distinguishes movies/TV in one table.
+`movies` columns: `id, title, rating (REAL 1-10), genre, date_watched, notes, director, release_year, type ('movie'|'tv'|'podcast'), num_seasons, total_episodes, host, publisher, episodes_heard, artwork_url, status (default 'watched'), created_at`. The `type` column distinguishes the three content types in one table; the four podcast columns are nullable and unused by movies/TV. Podcasts reuse `status='watched'` / `'to_watch'` — only UI labels differ ("Listened" / "To Listen").
+
+**Content-type registry**: `frontend/src/utils/contentTypes.js` — `CONTENT_TYPES`, `CONTENT_TYPE_KEYS`, and `ACCENT` (complete literal Tailwind class strings; Movies = cyan, TV = magenta, Podcasts = purple). Never interpolate Tailwind class names — the JIT extractor can't see dynamic strings.
 
 Extra tables (also auto-created, idempotent):
-- `taste_profiles` — one row per `scope` (`'all'` = unified movies+TV); persisted AI taste profile.
+- `taste_profiles` — one row per `scope` (`'all'` = unified movies+TV+podcasts); persisted AI taste profile.
 - `rec_feedback` — per-user reaction to a recommendation; unique on `(normalized_title, content_type)`; feedback ∈ `interested|not_for_me|seen_it`.
 
-**Migration** (`migrateDatabase()`): detects missing columns / NOT NULL constraints and rebuilds via `movies_new` copy + rename. Also runs `recoverTvTypes()` (rows with seasons/episodes but `type='movie'` → `'tv'`).
+**Migration** (`migrateDatabase()`): detects missing columns / NOT NULL constraints and rebuilds via `movies_new` copy + rename; podcast columns go through a guarded additive `ALTER TABLE` path. `recoverTvTypes()` (rows with seasons/episodes but `type='movie'` → `'tv'`) skips rows with any podcast column set, so podcast rows survive startup.
 
 **`status` matters for AI**: assistant and recommender treat only `status='watched'` rows as context — watchlist items are excluded.
 
 # Database — Cloud Mode (Supabase)
 
-Postgres with RLS scoping every row to `auth.uid() = user_id`. Schema across `supabase/migrations/0001_init.sql` … `0008_email_for_username.sql` (movies, profiles, friends, taste_profiles, rec_feedback).
+Postgres with RLS scoping every row to `auth.uid() = user_id`. Schema across `supabase/migrations/0001_init.sql` … `0009_podcasts.sql` (movies, profiles, friends, taste_profiles, rec_feedback; `0009` adds the four podcast columns).
 
 # AI — Local Mode (Ollama)
 
@@ -74,9 +76,12 @@ Providers called **directly from the browser** with user-supplied keys; keys liv
 - `ollama-recommender.js` — recommendations + 24h cache.
 - `assistant.js` — chat assistant over Ollama (filters to `status='watched'`).
 - `taste-analyzer.js` — builds the persisted taste profile.
+- All three AI modules handle all three content types (movies, TV, podcasts).
 - `db-importer.js` / `letterboxd-importer.js` — CSV/SQLite/Letterboxd import via `multer` uploads to `backend/uploads/`.
 
-Frontend state: `MovieContext.jsx`, `TVSeriesContext.jsx`, `FriendsContext.jsx` (React Context, consumed via hooks).
+Frontend state: `MovieContext.jsx`, `TVSeriesContext.jsx`, `PodcastContext.jsx`, `FriendsContext.jsx` (React Context, consumed via hooks).
+
+**Podcast lookup**: `frontend/src/api/podcastLookup.js` hits the iTunes Search API directly from the browser (CORS confirmed, `access-control-allow-origin: *`) for artwork + autofill; degrades to manual entry on failure.
 
 # Cloud Mode Build
 

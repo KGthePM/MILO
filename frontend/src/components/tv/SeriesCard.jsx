@@ -4,12 +4,7 @@ import { useTVSeries } from '../../utils/TVSeriesContext';
 import { useState, useEffect } from 'react';
 import { getEffectiveGenreColors, subscribeUserPrefs } from '../../utils/userPrefs';
 import { getGenreGlowStyle } from '../../utils/genreColors';
-
-const getRatingColor = (rating) => {
-  if (rating >= 8) return 'text-green-400';
-  if (rating >= 6) return 'text-yellow-400';
-  return 'text-red-400';
-};
+import { getRatingColor } from '../../utils/ratingColors';
 
 export default function SeriesCard({ series, onEdit, onMarkWatched }) {
   const isToWatch = series.status === 'to_watch';

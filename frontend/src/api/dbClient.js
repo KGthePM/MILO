@@ -1,4 +1,5 @@
 import wasmUrl from 'sql.js/dist/sql-wasm.wasm?url';
+import { isContentType } from '../utils/contentTypes';
 
 const IMPORTABLE_COLUMNS = [
   'title',
@@ -11,6 +12,10 @@ const IMPORTABLE_COLUMNS = [
   'type',
   'num_seasons',
   'total_episodes',
+  'host',
+  'publisher',
+  'episodes_heard',
+  'artwork_url',
 ];
 
 let _SQL = null;
@@ -21,8 +26,11 @@ async function getSQL() {
   return _SQL;
 }
 
-function normalizeType(t) {
-  return t === 'tv' ? 'tv' : 'movie';
+// Falls back to 'movie' only for genuinely unknown values. Checking against the
+// registry (rather than `t === 'tv' ? 'tv' : 'movie'`) is what keeps a third
+// content type from being silently imported as a movie.
+export function normalizeType(t) {
+  return isContentType(t) ? t : 'movie';
 }
 
 export async function parseMiloDb(file) {
@@ -105,6 +113,10 @@ export function processDbRows(rows, existingKeys = new Set()) {
       type,
       num_seasons: row.num_seasons != null ? Number(row.num_seasons) || null : null,
       total_episodes: row.total_episodes != null ? Number(row.total_episodes) || null : null,
+      host: row.host || null,
+      publisher: row.publisher || null,
+      episodes_heard: row.episodes_heard != null ? Number(row.episodes_heard) || null : null,
+      artwork_url: row.artwork_url || null,
     });
   }
 

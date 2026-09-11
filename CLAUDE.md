@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-**MILO** — a movie and TV tracking dashboard. One React frontend, two data/AI backends selected at **build time** via `VITE_MILO_MODE=local|cloud` (default `local`):
+**MILO** — a movie, TV, and podcast tracking dashboard. One React frontend, two data/AI backends selected at **build time** via `VITE_MILO_MODE=local|cloud` (default `local`):
 
 - **Local mode**: React frontend + Express 5 / SQLite backend, Ollama-only AI, single user.
 - **Cloud mode**: same React app talks to Supabase (Postgres + Auth) for CRUD and calls LLM providers **directly from the browser** with user-supplied API keys (BYOK). No backend AI inference, no server-side secrets. Cloud build deploys to Netlify (`frontend/netlify.toml`, SPA fallback → `/index.html`).
@@ -30,7 +30,7 @@ Frontend production build: `cd frontend && npm run build` → `dist/`.
 ## Dual-Mode Switching
 
 - `frontend/src/utils/mode.js` exports `IS_CLOUD` / `IS_LOCAL` from `import.meta.env.VITE_MILO_MODE`.
-- API clients (`movieApi.js`, `tvApi.js`, `assistantApi.js`, `tasteApi.js`, `feedbackApi.js`) are **switchers**: `await import('./cloud')` if `IS_CLOUD`, else the `./*.local.js` variant (relative `/api` fetches).
+- API clients (`movieApi.js`, `tvApi.js`, `podcastApi.js`, `assistantApi.js`, `tasteApi.js`, `feedbackApi.js`) are **switchers**: `await import('./cloud')` if `IS_CLOUD`, else the `./*.local.js` variant (relative `/api` fetches).
 - `cloud.js` calls Supabase directly from the browser; `*.local.js` hit the Express backend through the Vite `/api` proxy (`vite.config.js`: `/api` → `http://localhost:3000`).
 - `friendsApi.js` / `FriendsContext.jsx` are **cloud-only** (profiles, friend requests, friends' libraries) — no `.local.js` variant.
 - In cloud mode the backend is entirely unused; `AuthGate.jsx` wraps the app with Supabase email/password auth (a no-op in local mode).
@@ -39,19 +39,21 @@ Frontend production build: `cd frontend && npm run build` → `dist/`.
 
 `movies.db` in repo root, auto-created + auto-migrated on backend startup (`backend/database.js`; gitignored).
 
-`movies` columns: `id, title, rating (REAL 1-10), genre, date_watched, notes, director, release_year, type ('movie'|'tv'), num_seasons, total_episodes, status (default 'watched'), created_at`. The `type` column distinguishes movies/TV in one table.
+`movies` columns: `id, title, rating (REAL 1-10), genre, date_watched, notes, director, release_year, type ('movie'|'tv'|'podcast'), num_seasons, total_episodes, host, publisher, episodes_heard, artwork_url, status (default 'watched'), created_at`. The `type` column distinguishes the three content types in one table; the four podcast columns are nullable and unused by movies/TV. Podcasts reuse `status='watched'` / `'to_watch'` — only the UI labels differ ("Listened" / "To Listen", from `CONTENT_TYPES.podcast.verb`). Changing the stored values would drop podcasts out of every AI feature, which all filter on `status='watched'`.
+
+**Content-type registry**: `frontend/src/utils/contentTypes.js` is the single source of truth for the three types — `CONTENT_TYPES`, `CONTENT_TYPE_KEYS`, plus an `ACCENT` map of **complete literal Tailwind class strings** (`cyan` → neon-cyan, `magenta` → neon-magenta, `purple` → neon-purple). Never interpolate class names like `` `text-${accent}` `` — Tailwind's extractor can't see them. Accent convention: Movies = cyan, TV = magenta, Podcasts = purple.
 
 Extra tables (also auto-created, idempotent):
-- `taste_profiles` — one row per `scope` (`'all'` = unified movies+TV); persisted AI taste profile.
+- `taste_profiles` — one row per `scope` (`'all'` = unified movies+TV+podcasts); persisted AI taste profile.
 - `rec_feedback` — per-title reaction to a recommendation; unique on `(normalized_title, content_type)`; feedback ∈ `interested|not_for_me|seen_it`.
 
-`migrateDatabase()` detects missing columns / NOT NULL constraints and rebuilds via a `movies_new` copy + rename; also runs `recoverTvTypes()` (rows with seasons/episodes but `type='movie'` → `'tv'`).
+`migrateDatabase()` detects missing columns / NOT NULL constraints and rebuilds via a `movies_new` copy + rename; the podcast columns are added via a guarded additive `ALTER TABLE` path instead. `recoverTvTypes()` (rows with seasons/episodes but `type='movie'` → `'tv'`) is guarded to skip rows with any podcast column set, so a podcast row can never be silently converted to TV on startup.
 
 **`status` matters for AI**: the assistant and recommender treat only `status='watched'` rows as context — watchlist items are excluded.
 
 ## Database — Cloud Mode (Supabase)
 
-Postgres with RLS scoping every row to `auth.uid() = user_id`. Schema spans `supabase/migrations/0001_init.sql` … `0008_email_for_username.sql` (movies, profiles, friends, taste_profiles, rec_feedback).
+Postgres with RLS scoping every row to `auth.uid() = user_id`. Schema spans `supabase/migrations/0001_init.sql` … `0009_podcasts.sql` (movies, profiles, friends, taste_profiles, rec_feedback; `0009` adds the four podcast columns).
 
 ## AI — Local Mode (Ollama)
 
@@ -75,11 +77,15 @@ Providers called **directly from the browser** with user-supplied keys; keys liv
 
 - `server.js` — entry; loads `.env`, mounts `/api` routes, binds `0.0.0.0`.
 - `database.js` — SQLite connection, schema init, auto-migration.
-- `routes/index.js` — single large router: all CRUD + `/ollama/*`, `/recommendations`, `/assistant`, `/analytics`, import endpoints. `/api/movies` accepts a `type` query param; `/api/tv` is a TV-only alias.
-- `ollama-recommender.js` — recommendations + 24h cache. `assistant.js` — chat assistant. `taste-analyzer.js` — taste profile.
+- `routes/index.js` — single large router: all CRUD + `/ollama/*`, `/recommendations`, `/assistant`, `/analytics`, import endpoints. `/api/movies` accepts a `type` query param (all three types work); `/api/tv` is a TV-only legacy alias. There is deliberately no `/api/podcasts` — podcasts reuse `/api/movies?type=podcast`.
+- `ollama-recommender.js` — recommendations + 24h cache. `assistant.js` — chat assistant. `taste-analyzer.js` — taste profile. All three handle all three content types.
 - `db-importer.js` / `letterboxd-importer.js` — CSV/SQLite/Letterboxd import via `multer` uploads to `backend/uploads/`.
 
-Frontend state: `MovieContext.jsx`, `TVSeriesContext.jsx`, `FriendsContext.jsx` (React Context, consumed via hooks rather than fetching directly).
+Frontend state: `MovieContext.jsx`, `TVSeriesContext.jsx`, `PodcastContext.jsx`, `FriendsContext.jsx` (React Context, consumed via hooks rather than fetching directly).
+
+**Podcast metadata**: `frontend/src/api/podcastLookup.js` queries the iTunes Search API (`https://itunes.apple.com/search?media=podcast=…`) **directly from the browser** — CORS is confirmed (`access-control-allow-origin: *`), no proxy needed. Used for artwork + autofill in the Add modal; the feature degrades to plain manual entry on any failure. `release_year` is deliberately not autofilled (iTunes `releaseDate` is the latest-episode date, not the show's debut).
+
+**Genres**: `frontend/src/utils/genreColors.js` splits `SCREEN_GENRE_COLORS` (film/TV) from `PODCAST_GENRE_COLORS` (iTunes `primaryGenreName` strings); `GenreFilter` takes a `genres` prop so each section filters its own list. Unknown genres fall back gracefully.
 
 ## Import / Migration
 

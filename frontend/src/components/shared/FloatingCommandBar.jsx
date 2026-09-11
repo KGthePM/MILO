@@ -1,24 +1,29 @@
 import { useEffect, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Film, Tv, Clock, Plus, RefreshCw, Settings as SettingsIcon, LogIn, LogOut, Users } from 'lucide-react';
+import { Film, Tv, Mic, Clock, Plus, RefreshCw, Settings as SettingsIcon, LogIn, LogOut, Users } from 'lucide-react';
 import { IS_CLOUD } from '../../utils/mode';
 import { getSupabase } from '../../utils/supabase';
+import { CONTENT_TYPES, ACCENT, getContentType } from '../../utils/contentTypes';
 import ConfirmDialog from './ConfirmDialog';
+
+// Full literal class strings — Tailwind cannot see interpolated names.
+const ICON_BTN_ACCENT = {
+  cyan: 'text-neon-cyan hover:text-white hover:bg-neon-cyan/20',
+  magenta: 'text-neon-magenta hover:text-white hover:bg-neon-magenta/20',
+  purple: 'text-neon-purple hover:text-white hover:bg-neon-purple/20',
+  red: 'text-red-400 hover:text-white hover:bg-red-500/20',
+  white: 'text-white/70 hover:text-white hover:bg-white/10',
+};
+
+const NAV_ICONS = { movie: Film, tv: Tv, podcast: Mic };
 
 function Divider() {
   return <div className="w-px h-8 bg-white/10 mx-0.5 sm:mx-1 shrink-0" />;
 }
 
 function IconBtn({ onClick, title, children, accent = 'white', as = 'button', to, motionProps }) {
-  const accentClass =
-    accent === 'cyan'
-      ? 'text-neon-cyan hover:text-white hover:bg-neon-cyan/20'
-      : accent === 'magenta'
-      ? 'text-neon-magenta hover:text-white hover:bg-neon-magenta/20'
-      : accent === 'red'
-      ? 'text-red-400 hover:text-white hover:bg-red-500/20'
-      : 'text-white/70 hover:text-white hover:bg-white/10';
+  const accentClass = ICON_BTN_ACCENT[accent] || ICON_BTN_ACCENT.white;
 
   const base = `flex items-center justify-center w-10 h-10 sm:w-11 sm:h-11 rounded-xl transition-all shrink-0 ${accentClass}`;
 
@@ -39,8 +44,10 @@ function IconBtn({ onClick, title, children, accent = 'white', as = 'button', to
 
 export default function FloatingCommandBar({ page, onAdd, onRefresh }) {
   const location = useLocation();
-  const isMovies = page === 'movies';
-  const accent = isMovies ? 'cyan' : 'magenta';
+  // `page` has historically been 'movies' (plural) on the Movies page; map it
+  // onto the registry key rather than adding another special case.
+  const activeType = getContentType(page === 'movies' ? 'movie' : page);
+  const A = ACCENT[activeType.accent];
   const [session, setSession] = useState(null);
   const [showSignOut, setShowSignOut] = useState(false);
 
@@ -69,9 +76,11 @@ export default function FloatingCommandBar({ page, onAdd, onRefresh }) {
     if (IS_CLOUD) await getSupabase().auth.signOut();
   };
 
-  const onMoviesPath = location.pathname === '/' || location.pathname === '/movies';
-  const onTvPath = location.pathname.startsWith('/tv');
   const onTimelinePath = location.pathname.startsWith('/timeline');
+  const isActivePath = (key) =>
+    key === 'movie'
+      ? location.pathname === '/' || location.pathname === '/movies'
+      : location.pathname.startsWith(CONTENT_TYPES[key].path);
 
   return (
     <>
@@ -83,41 +92,35 @@ export default function FloatingCommandBar({ page, onAdd, onRefresh }) {
       className="fixed bottom-2 left-2 right-2 sm:bottom-4 sm:left-1/2 sm:right-auto sm:-translate-x-1/2 z-40"
     >
       <div
-        className={`glass rounded-2xl px-1.5 py-1.5 sm:px-2 sm:py-2 flex items-center justify-between sm:justify-start gap-0.5 sm:gap-1 shadow-2xl ${
-          isMovies ? 'neon-border-cyan' : 'neon-border-magenta'
-        }`}
+        className={`glass rounded-2xl px-1.5 py-1.5 sm:px-2 sm:py-2 flex items-center justify-between sm:justify-start gap-0.5 sm:gap-1 shadow-2xl ${A.border}`}
       >
-        {/* Page toggle */}
-        <Link
-          to="/movies"
-          title="Movies"
-          className={`flex items-center gap-2 px-2.5 sm:px-4 h-11 rounded-xl font-medium text-sm transition-all shrink-0 ${
-            onMoviesPath
-              ? 'bg-neon-cyan/20 text-neon-cyan neon-border-cyan'
-              : 'text-white/60 hover:text-white hover:bg-white/5'
-          }`}
-        >
-          <Film size={18} />
-          <span className="hidden sm:inline">Movies</span>
-        </Link>
-        <Link
-          to="/tv"
-          title="TV Series"
-          className={`flex items-center gap-2 px-2.5 sm:px-4 h-11 rounded-xl font-medium text-sm transition-all shrink-0 ${
-            onTvPath
-              ? 'bg-neon-magenta/20 text-neon-magenta neon-border-magenta'
-              : 'text-white/60 hover:text-white hover:bg-white/5'
-          }`}
-        >
-          <Tv size={18} />
-          <span className="hidden sm:inline">TV</span>
-        </Link>
+        {/* Page toggle — one entry per content type */}
+        {Object.values(CONTENT_TYPES).map((ct) => {
+          const Icon = NAV_ICONS[ct.key];
+          const active = isActivePath(ct.key);
+          const ctAccent = ACCENT[ct.accent];
+          return (
+            <Link
+              key={ct.key}
+              to={ct.path}
+              title={ct.nav}
+              className={`flex items-center gap-2 px-2.5 sm:px-4 h-11 rounded-xl font-medium text-sm transition-all shrink-0 ${
+                active
+                  ? `${ctAccent.bgSoft} ${ctAccent.text} ${ctAccent.border}`
+                  : 'text-white/60 hover:text-white hover:bg-white/5'
+              }`}
+            >
+              <Icon size={18} />
+              <span className="hidden sm:inline">{ct.nav}</span>
+            </Link>
+          );
+        })}
         <Link
           to="/timeline"
           title="Timeline"
           className={`flex items-center gap-2 px-2.5 sm:px-4 h-11 rounded-xl font-medium text-sm transition-all shrink-0 ${
             onTimelinePath
-              ? 'bg-white/15 text-white neon-border-magenta'
+              ? `bg-white/15 text-white ${A.border}`
               : 'text-white/60 hover:text-white hover:bg-white/5'
           }`}
         >
@@ -131,14 +134,10 @@ export default function FloatingCommandBar({ page, onAdd, onRefresh }) {
         {onAdd && (
           <motion.button
             onClick={onAdd}
-            title={isMovies ? 'Add Movie' : 'Add TV Series'}
+            title={`Add ${activeType.singular}`}
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
-            className={`flex items-center gap-2 h-11 px-3 sm:px-4 rounded-xl font-semibold text-sm transition-all pulse-glow shrink-0 ${
-              isMovies
-                ? 'bg-neon-cyan/20 border border-neon-cyan/60 text-neon-cyan neon-text-cyan hover:bg-neon-cyan/30'
-                : 'bg-neon-magenta/20 border border-neon-magenta/60 text-neon-magenta neon-text-magenta hover:bg-neon-magenta/30'
-            }`}
+            className={`flex items-center gap-2 h-11 px-3 sm:px-4 rounded-xl font-semibold text-sm transition-all pulse-glow shrink-0 border ${A.bgSoft} ${A.ring} ${A.text} ${A.glow} ${A.bgHover}`}
           >
             <Plus size={20} />
             <span className="hidden sm:inline">Add</span>
