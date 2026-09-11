@@ -1,6 +1,6 @@
 # z.ai / z.ai Coding — 502 on Recommendations + Assistant
 
-Status: **Fix implemented and unit-tested locally against a fake upstream. NOT yet verified against the real z.ai API or a real deploy.**
+Status: **RESOLVED.** Fixed in commit `88b07c2`, deployed to Netlify, and confirmed working in production by the user on 2026-09-11.
 
 ## Symptom
 
@@ -55,10 +55,20 @@ So the fix no longer depends on any single lever.
 
 Unit harnesses against a fake SSE upstream (not committed; run ad hoc) confirmed: SSE accumulation with split frames, `onToken` firing per delta, `stream: true` reaching upstream, non-streaming providers unchanged, fallback when upstream returns plain JSON, the thinking-400 retry dropping the field, partial text returned on a mid-stream cutoff, caller aborts still propagating, proxy stream passthrough/content-type/auth header/timeout signal, buffered and error paths intact, 504 on timeout, and both allowlists. `VITE_MILO_MODE=cloud npm run build` passes.
 
-## Still to do
+## Confirmed in production
 
-1. **Run it for real**: `cd frontend && VITE_MILO_MODE=cloud netlify dev` (plain `vite dev` does not serve Netlify Functions — this is why the earlier fix was never actually exercised). Test Recommendations, Taste Profile, and the assistant quick actions with a real z.ai key on `glm-4.6`; confirm in the Network tab that `/.netlify/functions/zai-proxy` returns `text/event-stream` and chunks arrive within a second or two.
-2. Spot-check one non-proxied provider (e.g. OpenRouter) to confirm the buffered path is untouched.
-3. Deploy and retest on the live Netlify site.
-4. **If 502s persist after a real deploy**: port the proxy to a Supabase Edge Function — 150s wall clock on the free plan, 400s on paid, CORS headers under our control. Cloud mode already depends on Supabase, so this is a deploy-step change (`supabase functions deploy`), not a new dependency.
-5. **If z.ai Coding specifically stays slow**: its `/api/coding/paas/v4` surface is built for agentic coding flows, not one-shot chat/JSON. Consider a UI hint steering users to plain z.ai for this app's workload.
+Deployed to Netlify from `main` and tested by the user against the live cloud site on 2026-09-11 — Recommendations and the Assistant both work with z.ai / z.ai Coding selected.
+
+## Lessons learned
+
+1. **An undeployed fix can't be judged by a prod retest.** This issue looked like a failed fix for a whole round because the earlier `thinking: disabled` change existed only as an uncommitted local diff while the live Netlify site was being retested. The identical error was evidence of nothing. Check what code is actually deployed before concluding an approach is wrong — and note that `netlify dev`, not plain `vite dev`, is required to exercise Netlify Functions locally.
+2. **Verify vendor assumptions against live docs.** Two load-bearing beliefs turned out to be false: that streaming would buy more time (Netlify's 60s cap applies to streamed responses too — only the payload cap changes, 6 MB → 20 MB), and that `thinking: {type:'disabled'}` reliably disables GLM reasoning (it's ignored on some endpoints, and newer models reject it outright with HTTP 400 code 1210).
+3. **Layer independent mitigations instead of betting on one.** The single-lever fix would have *introduced* a new hard failure on models that reject the `thinking` field. What worked was four mitigations plus a graceful-degradation path, so no single wrong assumption sinks the whole thing.
+4. **Decode the error before chasing it.** `{"errorType":"Error","errorMessage":"An unknown error has occurred"}` is the Lambda crash wrapper, not a provider error — recognizing that is what pointed at the 60s limit rather than at z.ai.
+5. **Design for the ceiling you don't control.** 60s is still a hard cap. Returning partial text on a cut-off stream (salvaged for JSON, shown as a partial reply in chat) means hitting it degrades instead of failing.
+
+## If it recurs
+
+- **502s come back**: port the proxy to a Supabase Edge Function — 150s wall clock free, 400s paid, CORS headers under our control. Cloud mode already depends on Supabase, so it's a deploy-step change (`supabase functions deploy`), not a new dependency.
+- **z.ai Coding specifically stays slow**: its `/api/coding/paas/v4` surface is built for agentic coding flows, not one-shot chat/JSON. Consider a UI hint steering users to plain z.ai for this app's workload.
+- **Untested paths**: a non-proxied provider (e.g. OpenRouter) hasn't been spot-checked in prod since this change; the buffered path is unchanged by design and covered by the local harness, but it's the first thing to check if another provider misbehaves.
