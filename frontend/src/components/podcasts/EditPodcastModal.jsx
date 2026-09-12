@@ -4,6 +4,7 @@ import { X, Globe, Lock } from 'lucide-react';
 import { usePodcasts } from '../../utils/PodcastContext';
 import { IS_CLOUD } from '../../utils/mode';
 import { PODCAST_GENRE_LIST } from '../../utils/genreColors';
+import PodcastSearch from './PodcastSearch';
 import { CONTENT_TYPES } from '../../utils/contentTypes';
 
 const PODCAST = CONTENT_TYPES.podcast;
@@ -36,6 +37,21 @@ export default function EditPodcastModal({ isOpen, onClose, podcast }) {
   if (!isOpen || !podcast) return null;
 
   const isToListen = formData.status === 'to_watch';
+
+  // Same semantics as the Add modal: picking a result overwrites the
+  // directory-sourced fields; only a genre MILO has a color for is adopted.
+  // Notes, rating, episodes heard, and date are never touched.
+  const applyLookup = (result) => {
+    setFormData((prev) => ({
+      ...prev,
+      title: result.title,
+      host: result.host,
+      publisher: result.publisher,
+      genre: PODCAST_GENRE_LIST.includes(result.genre) ? result.genre : prev.genre,
+      artwork_url: result.artwork_url,
+      total_episodes: result.total_episodes != null ? String(result.total_episodes) : prev.total_episodes,
+    }));
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -77,6 +93,8 @@ export default function EditPodcastModal({ isOpen, onClose, podcast }) {
             <X size={24} />
           </button>
         </div>
+
+        <PodcastSearch onPick={applyLookup} initialTerm={podcast.title} />
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
