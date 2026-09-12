@@ -1,14 +1,18 @@
 import React from 'react';
 import { motion } from 'framer-motion';
-import { Film, Star, TrendingUp, Tv } from 'lucide-react';
+import { Film, Mic, Star, TrendingUp, Tv } from 'lucide-react';
+import { getContentType } from '../../utils/contentTypes';
+
+const CONFIG = {
+  movie: { colorClass: 'cyan', icon: Film, label: 'Movies' },
+  tv: { colorClass: 'magenta', icon: Tv, label: 'TV Series' },
+  podcast: { colorClass: 'purple', icon: Mic, label: 'Podcasts' },
+};
 
 export default function Stats({ analytics, type = 'movie' }) {
   if (!analytics) return null;
 
-  const isMovie = type === 'movie';
-  const colorClass = isMovie ? 'cyan' : 'magenta';
-  const icon = isMovie ? Film : Tv;
-  const label = isMovie ? 'Movies' : 'TV Series';
+  const { colorClass, icon, label } = CONFIG[getContentType(type).key];
 
   return (
     <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">

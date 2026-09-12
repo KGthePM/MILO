@@ -1,5 +1,5 @@
 import { motion } from 'framer-motion';
-import { Star, Calendar, Trash2, Edit, Mic, Headphones, Radio, Check, Eye } from 'lucide-react';
+import { Star, Calendar, Trash2, Edit, Mic, Headphones, Radio, Check } from 'lucide-react';
 import { usePodcasts } from '../../utils/PodcastContext';
 import { useState, useEffect } from 'react';
 import { getEffectiveGenreColors, subscribeUserPrefs } from '../../utils/userPrefs';
@@ -111,7 +111,7 @@ export default function PodcastCard({ podcast, onEdit, onMarkListened }) {
       <div className="flex items-center gap-2 mb-2 flex-wrap">
         {isToListen ? (
           <span className="px-2 py-1 text-xs rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30 inline-flex items-center gap-1">
-            <Eye size={12} /> {PODCAST.verbTo}
+            <Headphones size={12} /> {PODCAST.verbTo}
           </span>
         ) : (
           podcast.rating != null && (
