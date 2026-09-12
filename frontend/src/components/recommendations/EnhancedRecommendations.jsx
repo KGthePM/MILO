@@ -99,6 +99,9 @@ export default function EnhancedRecommendations({ contentType = 'movie' }) {
 
   const contentLabel = getContentType(contentType).nav;
   const A = accentFor(contentType);
+  // Quick Hitters are scoped per content type (movies/TV keep viewing moods,
+  // podcasts get listening genres) — only render the chips that apply here.
+  const visiblePresets = PRESETS.filter((p) => p.contentTypes.includes(contentType));
 
   const loadModels = async () => {
     setModelsLoading(true);
@@ -401,7 +404,7 @@ export default function EnhancedRecommendations({ contentType = 'movie' }) {
       </div>
 
       <div className="flex flex-wrap gap-2 mb-4">
-        {PRESETS.map((p) => {
+        {visiblePresets.map((p) => {
           const active = activePreset === p.id;
           return (
             <button

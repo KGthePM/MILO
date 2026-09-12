@@ -9,7 +9,10 @@ const CACHE_TTL = 24 * 60 * 60 * 1000; // 24 hours
 // Quick Hitters preset directives, mirrored from
 // frontend/src/recommendations/presets.js (the CommonJS backend can't import the
 // ESM module). A preset id arrives as the recommendation `type`; keep the
-// directive text in sync with the frontend module.
+// directive text in sync with the frontend module. Presets are scoped per
+// content type in the frontend UI (movies/TV = viewing moods, podcasts =
+// listening genres); every directive stays in the map because the backend
+// serves all content types.
 const PRESET_DIRECTIVES = {
   rainy_day: 'Right now I want cozy, immersive comfort viewing — the kind of bad-weather escapism you sink into under a blanket. Favor warm, absorbing, low-stress picks over anything abrasive or exhausting.',
   feel_good: 'Right now I want an uplifting, feel-good watch — warm, satisfying, and hopeful, with an ending that leaves me better than it found me. Steer away from bleak or downer material.',
@@ -19,6 +22,13 @@ const PRESET_DIRECTIVES = {
   group_watch: 'Right now I want a crowd-pleaser for a group — low-friction, broadly accessible, and fun to watch together, nothing that demands total silence or divides the room.',
   short_sweet: 'Right now I want something short and sweet — low time commitment (ideally around 100 minutes or under for films, or tight/bingeable for series), punchy and economical, no sprawling epics.',
   cult_polarizing: 'Right now I want something divisive and cult — love-it-or-hate-it, boundary-pushing work with a devoted following. It is fine to stretch beyond my usual comfort zone and recommend polarizing picks.',
+  true_crime: 'Right now I want gripping true crime — meticulous investigation, chilling real cases, and storytelling that stays with me. Keep it compelling and well-researched, not gratuitous.',
+  make_me_laugh: 'Right now I want podcasts that make me laugh — sharp, genuinely funny comedy from hosts with great chemistry and timing. Light and hilarious over heavy or grim.',
+  learn_something: 'Right now I want to learn something — smart, curious podcasts about science, STEM, history, or big ideas, explained clearly and engagingly. Favor rigorous, well-produced shows that make complicated subjects feel approachable.',
+  deep_dive: 'Right now I want a deep dive — serialized narrative storytelling and investigative journalism with strong pacing and a story that pulls me from episode to episode. Immersive and bingeable.',
+  comfort_listen: 'Right now I want a comfort listen — warm, companionable shows that feel like time with a good friend: low-stakes, easy to drift along with, and never exhausting.',
+  quick_hits: 'Right now I want quick hits — episodic podcasts that fit a commute, roughly 45 minutes or under per episode, satisfying without a huge episode backlog or a long serialized commitment.',
+  blow_my_mind: 'Right now I want a mind-bender — podcasts that upend how I see things: big ideas, strange frontiers, and perspective-shifting conversations that keep me thinking long after the episode ends.',
 };
 
 function isPresetId(id) {
