@@ -292,6 +292,10 @@ export default function EnhancedRecommendations({ contentType = 'movie' }) {
 
   const handleGenerate = async () => {
     setHasGenerated(true);
+    // Enter the loading state immediately so the spinner covers the whole flow —
+    // including the awaited taste auto-refresh below — instead of flashing the
+    // empty state ("No recommendations yet") while it runs.
+    setLoading(true);
     // Refresh the taste profile first (when warranted) so the rec call that
     // follows reads the fresh one. Never blocks recs — failures fall through.
     if (IS_CLOUD && cloudReady && tasteProfile) {
@@ -546,14 +550,14 @@ export default function EnhancedRecommendations({ contentType = 'movie' }) {
         </div>
       )}
 
-      {hasGenerated && loading && (
+      {hasGenerated && (loading || autoRefreshing) && (
         <div className="flex items-center justify-center py-8">
           <Loader2 className="animate-spin text-white/50" size={32} />
           <p className="ml-3 text-white/50">Loading recommendations…</p>
         </div>
       )}
 
-      {hasGenerated && !loading && (
+      {hasGenerated && !loading && !autoRefreshing && (
         <>
           {source === 'ai' && (
             <div className="flex items-center gap-2 mb-4 px-3 py-2 bg-green-500/10 rounded-lg border border-green-500/20">
