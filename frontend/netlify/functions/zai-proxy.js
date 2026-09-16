@@ -20,6 +20,35 @@ const ALLOWED_PATHS = new Set(['/chat/completions', '/models']);
 const UPSTREAM_TIMEOUT_MS = 55000;
 
 export default async (req) => {
+  // CORS: the deployed site calls this same-origin, but the iOS app
+  // (Capacitor webview) calls it cross-origin from capacitor://localhost.
+  // Echo only known-good origins — never reflect arbitrary ones with
+  // credentials allowed.
+  const corsHeaders = (origin) => {
+    const allowed = new Set([
+      'capacitor://localhost',
+      'ionic://localhost',
+      'https://milo-movies.netlify.app',
+    ]);
+    const base = { 'Access-Control-Allow-Headers': 'Content-Type' };
+    if (allowed.has(origin)) {
+      return { ...base, 'Access-Control-Allow-Origin': origin, Vary: 'Origin' };
+    }
+    return base;
+  };
+  const origin = req.headers.get('origin') || '';
+
+  if (req.method === 'OPTIONS') {
+    // Preflight for the Capacitor webview origin.
+    return new Response(null, {
+      status: 204,
+      headers: corsHeaders(origin),
+    });
+  }
+
+  // Attach CORS headers to every JSON/stream response below.
+  const cors = corsHeaders(origin);
+
   if (req.method !== 'POST') {
     return new Response('Method not allowed', { status: 405 });
   }
@@ -30,7 +59,7 @@ export default async (req) => {
   } catch {
     return new Response(JSON.stringify({ error: 'Invalid JSON body' }), {
       status: 400,
-      headers: { 'Content-Type': 'application/json' },
+      headers: { ...cors, 'Content-Type': 'application/json' },
     });
   }
 
@@ -39,19 +68,19 @@ export default async (req) => {
   if (!base) {
     return new Response(JSON.stringify({ error: `Unknown provider "${provider}"` }), {
       status: 400,
-      headers: { 'Content-Type': 'application/json' },
+      headers: { ...cors, 'Content-Type': 'application/json' },
     });
   }
   if (!ALLOWED_PATHS.has(path)) {
     return new Response(JSON.stringify({ error: `Unsupported path "${path}"` }), {
       status: 400,
-      headers: { 'Content-Type': 'application/json' },
+      headers: { ...cors, 'Content-Type': 'application/json' },
     });
   }
   if (!apiKey) {
     return new Response(JSON.stringify({ error: 'apiKey required' }), {
       status: 400,
-      headers: { 'Content-Type': 'application/json' },
+      headers: { ...cors, 'Content-Type': 'application/json' },
     });
   }
 
@@ -83,7 +112,7 @@ export default async (req) => {
       }),
       {
         status: timedOut ? 504 : 502,
-        headers: { 'Content-Type': 'application/json' },
+        headers: { ...cors, 'Content-Type': 'application/json' },
       }
     );
   }
@@ -96,6 +125,7 @@ export default async (req) => {
     return new Response(upstreamRes.body, {
       status: upstreamRes.status,
       headers: {
+        ...cors,
         'Content-Type': upstreamRes.headers.get('content-type') || 'text/event-stream',
         'Cache-Control': 'no-cache',
         Connection: 'keep-alive',
@@ -106,6 +136,6 @@ export default async (req) => {
   const text = await upstreamRes.text();
   return new Response(text, {
     status: upstreamRes.status,
-    headers: { 'Content-Type': upstreamRes.headers.get('content-type') || 'application/json' },
+    headers: { ...cors, 'Content-Type': upstreamRes.headers.get('content-type') || 'application/json' },
   });
 };

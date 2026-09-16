@@ -1,9 +1,10 @@
 import { useState } from 'react';
-import { Upload, Database, Download, LogOut, LogIn, Film, Tv } from 'lucide-react';
+import { Upload, Database, Download, LogOut, LogIn, Film, Tv, Trash2, AlertTriangle } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import LetterboxdImportModal from '../LetterboxdImportModal';
 import { useMovies } from '../../utils/MovieContext';
 import { IS_CLOUD } from '../../utils/mode';
+import { getSupabase } from '../../utils/supabase';
 import { api as movieApi } from '../../api/movieApi';
 import { tvApi } from '../../api/tvApi';
 
@@ -55,6 +56,10 @@ export default function DataSection({ session, onSignOut }) {
   const [isImportOpen, setIsImportOpen] = useState(false);
   const [exportError, setExportError] = useState('');
   const [exporting, setExporting] = useState(null); // 'movies' | 'tv' | null
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [deletePhrase, setDeletePhrase] = useState('');
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState('');
   const { fetchMovies } = useMovies();
 
   const handleExport = async (kind) => {
@@ -71,6 +76,19 @@ export default function DataSection({ session, onSignOut }) {
       setExportError(err?.message || 'Export failed');
     } finally {
       setExporting(null);
+    }
+  };
+
+  const handleDeleteAccount = async () => {
+    setDeleteError('');
+    setDeleting(true);
+    try {
+      const { error } = await getSupabase().rpc('delete_my_account', { p_confirm: 'DELETE' });
+      if (error) throw error;
+      onSignOut();
+    } catch (err) {
+      setDeleteError(err?.message || 'Account deletion failed');
+      setDeleting(false);
     }
   };
 
@@ -168,6 +186,56 @@ export default function DataSection({ session, onSignOut }) {
             >
               <LogIn size={16} /> Sign in
             </Link>
+          )}
+          {session && !deleteConfirmOpen && (
+            <button
+              onClick={() => setDeleteConfirmOpen(true)}
+              className="mt-3 w-full flex items-center gap-3 p-4 rounded-lg glass border border-red-500/20 hover:border-red-500/50 transition-all text-left"
+            >
+              <Trash2 size={20} className="text-red-400 shrink-0" />
+              <div>
+                <div className="text-white font-medium">Delete account</div>
+                <div className="text-white/50 text-xs">Permanently remove your account and all MILO data</div>
+              </div>
+            </button>
+          )}
+          {session && deleteConfirmOpen && (
+            <div className="mt-3 p-4 rounded-lg border border-red-500/40 bg-red-500/5 space-y-3">
+              <div className="flex items-center gap-2 text-red-300 text-sm font-medium">
+                <AlertTriangle size={16} /> Delete your account permanently?
+              </div>
+              <p className="text-white/60 text-sm">
+                This erases your profile, friends, ratings, watchlist, taste profile, and AI feedback —
+                immediately and unrecoverably. Export your library first if you want a copy.
+              </p>
+              <label className="block">
+                <span className="text-white/70 text-sm">Type DELETE to confirm</span>
+                <input
+                  type="text"
+                  value={deletePhrase}
+                  onChange={(e) => setDeletePhrase(e.target.value)}
+                  placeholder="DELETE"
+                  className="mt-1 w-full bg-black/40 text-white rounded-lg px-3 py-2 border border-white/10 focus:border-red-500 outline-none"
+                />
+              </label>
+              {deleteError && <p className="text-red-400 text-sm">{deleteError}</p>}
+              <div className="flex gap-2 justify-end">
+                <button
+                  onClick={() => { setDeleteConfirmOpen(false); setDeletePhrase(''); setDeleteError(''); }}
+                  disabled={deleting}
+                  className="px-4 py-2 rounded-lg bg-black/30 border border-white/10 text-white/70 hover:text-white disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleDeleteAccount}
+                  disabled={deleting || deletePhrase.trim() !== 'DELETE'}
+                  className="px-4 py-2 rounded-lg bg-red-500/20 border border-red-500/50 text-red-200 hover:bg-red-500/30 font-semibold disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  {deleting ? 'Deleting…' : 'Delete my account'}
+                </button>
+              </div>
+            </div>
           )}
         </section>
       )}

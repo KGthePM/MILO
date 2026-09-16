@@ -3,6 +3,19 @@ import { IS_CLOUD } from '../../utils/mode';
 
 const PROXY_URL = '/.netlify/functions/zai-proxy';
 
+// In the iOS app (Capacitor) the page origin is capacitor://localhost, so a
+// relative proxy path resolves to nothing. Use the deployed site's function
+// endpoint instead. VITE_ZAI_PROXY_URL can override both cases.
+function resolveProxyUrl() {
+  const configured = import.meta.env.VITE_ZAI_PROXY_URL;
+  if (configured) return configured;
+  const proto = typeof window !== 'undefined' ? window.location.protocol : '';
+  if (proto === 'capacitor:' || proto === 'ionic:' || proto === 'file:') {
+    return 'https://milo-movies.netlify.app' + PROXY_URL;
+  }
+  return PROXY_URL;
+}
+
 function normalizeBaseUrl(url, label) {
   if (!url) throw new Error(`${label} base URL required.`);
   const trimmed = String(url).trim().replace(/\/+$/, '');
@@ -111,7 +124,7 @@ export function createOpenAICompatibleProvider({
   const useProxy = proxied && IS_CLOUD;
 
   async function proxyRequest(path, { apiKey, body, signal }) {
-    const res = await fetch(PROXY_URL, {
+    const res = await fetch(resolveProxyUrl(), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       signal,
