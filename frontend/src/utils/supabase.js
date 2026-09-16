@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import { IS_CLOUD } from './mode';
+import { IS_NATIVE, nativeStorageAdapter } from './native';
 
 let _client = null;
 
@@ -17,7 +18,18 @@ export function getSupabase() {
   }
 
   _client = createClient(url, anonKey, {
-    auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true },
+    auth: {
+      persistSession: true,
+      autoRefreshToken: true,
+      // detectSessionInUrl parses tokens out of the URL on load. On iOS
+      // (capacitor://localhost) confirmation links must be handled by the
+      // deep-link listener instead — leave URL parsing to the web build.
+      detectSessionInUrl: !IS_NATIVE,
+      // localStorage inside a WKWebView can be purged by the OS under storage
+      // pressure, logging users out. @capacitor/preferences (UserDefaults)
+      // survives; supabase-js supports async storage adapters.
+      ...(IS_NATIVE ? { storage: nativeStorageAdapter() } : {}),
+    },
   });
   return _client;
 }

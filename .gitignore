@@ -31,4 +31,4 @@ Thumbs.db
 *.swo
 
 # Node
-node_modules
+node_modules.test-account
