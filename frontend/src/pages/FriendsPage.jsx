@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Users, UserPlus, Inbox, Film } from 'lucide-react';
+import { Users, UserPlus, Inbox, Film, UserCircle } from 'lucide-react';
 import { useFriends } from '../utils/FriendsContext';
 import { FriendsProvider } from '../utils/FriendsContext';
 import FriendCard from '../components/friends/FriendCard';
@@ -17,7 +17,7 @@ function FriendsPageInner() {
   const tabs = [
     { id: 'friends', label: `Friends${friends.length ? ` (${friends.length})` : ''}`, icon: Users },
     { id: 'requests', label: `Requests${incoming.length ? ` (${incoming.length})` : ''}`, icon: Inbox },
-    { id: 'profile', label: 'My profile', icon: UserPlus },
+    { id: 'profile', label: 'Profile', icon: UserCircle },
   ];
 
   return (
@@ -40,7 +40,7 @@ function FriendsPageInner() {
                 onClick={() => setShowAdd(true)}
                 className="flex items-center gap-2 px-4 py-2 rounded-lg bg-neon-cyan/20 border border-neon-cyan/50 text-neon-cyan font-semibold hover:bg-neon-cyan/30"
               >
-                <UserPlus size={16} /> Find friends
+                <UserPlus size={16} /> Add friend
               </button>
             </div>
           </div>
@@ -61,7 +61,7 @@ function FriendsPageInner() {
                   active ? 'bg-neon-cyan/20 text-neon-cyan neon-border-cyan' : 'text-white/70 hover:text-white hover:bg-white/5'
                 }`}
               >
-                <Icon size={16} /> <span className="hidden sm:inline">{t.label}</span>
+                <Icon size={16} /> <span>{t.label}</span>
               </button>
             );
           })}
@@ -74,7 +74,7 @@ function FriendsPageInner() {
           <div className="space-y-3">
             {friends.length === 0 ? (
               <p className="text-white/50 text-sm text-center py-8">
-                No friends yet. Tap "Find friends" to send your first request.
+                No friends yet. Tap "Add friend" to send your first request.
               </p>
             ) : (
               friends.map((f) => <FriendCard key={f.friendshipId} friend={f} />)

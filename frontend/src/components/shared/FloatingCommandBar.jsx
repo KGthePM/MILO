@@ -169,9 +169,11 @@ export default function FloatingCommandBar({ page, onAdd, onRefresh }) {
           <SettingsIcon size={20} />
         </IconBtn>
 
-        {/* Auth (cloud only) — at far end, separated to avoid accidental taps */}
+        {/* Auth (cloud only) — at far end, separated to avoid accidental taps.
+            Hidden below sm: the bar's ~390px of shrink-0 content overflows
+            ≤390pt screens; sign-out remains available in Settings. */}
         {IS_CLOUD && (
-          <>
+          <div className="hidden sm:flex items-center">
             <Divider />
             {session ? (
               <motion.button
@@ -189,7 +191,7 @@ export default function FloatingCommandBar({ page, onAdd, onRefresh }) {
                 <LogIn size={20} />
               </IconBtn>
             )}
-          </>
+          </div>
         )}
       </div>
     </motion.div>

@@ -52,7 +52,7 @@ export default function AddFriendModal({ isOpen, onClose }) {
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex justify-between items-center mb-4">
-          <h2 className="text-2xl font-bold neon-text-cyan">Find Friends</h2>
+          <h2 className="text-2xl font-bold neon-text-cyan">Add Friend</h2>
           <button onClick={onClose} className="text-white/70 hover:text-white">
             <X size={24} />
           </button>
