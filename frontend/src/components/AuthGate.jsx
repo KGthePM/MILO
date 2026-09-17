@@ -191,10 +191,15 @@ function CloudAuthGate({ children }) {
         />
         {/* Synthwave horizon — a perspective grid receding toward the middle
             of the screen. Pure CSS (.auth-horizon in index.css) so it costs no
-            React renders and loops as a composited translate3d. */}
+            React renders and loops as a composited translate3d. The extra
+            -stage element is required: the fade mask and the perspective have to
+            sit on separate elements or WebKit flattens the grid away entirely.
+            See the comment in index.css before merging these divs. */}
         <div aria-hidden="true" className="auth-horizon">
-          <div className="auth-horizon-plane">
-            <div className="auth-horizon-grid" />
+          <div className="auth-horizon-stage">
+            <div className="auth-horizon-plane">
+              <div className="auth-horizon-grid" />
+            </div>
           </div>
         </div>
 

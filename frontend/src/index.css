@@ -274,23 +274,56 @@ input::placeholder, textarea::placeholder {
 
 /* --- Synthwave horizon ---------------------------------------------------
    A perspective grid receding toward the vertical centre of the screen.
-   The rotateX plane and the scrolling grid are separate elements so the
-   looping motion stays a pure translate3d (composited) rather than a
-   background-position repaint. The grid is one cell taller than its parent
-   and travels exactly one cell, so the loop is seamless. */
+
+   Four elements, and the split is load-bearing — do not collapse them:
+
+     .auth-horizon        clip + fade mask   (NO perspective)
+       .auth-horizon-stage  perspective
+         .auth-horizon-plane  rotateX
+           .auth-horizon-grid animated translate3d
+
+   The mask and the perspective must live on *different* elements. `mask` is a
+   grouping property, so an element carrying one is forced to a flat rendering
+   context; WebKit is aggressive about this and drops the perspective entirely.
+   When that happens rotateX(74deg) about a 50% 0% origin collapses the plane to
+   cos(74deg) ~= 27% of the box, anchored at its top — i.e. straight into the
+   mask's transparent zone — and the grid renders as nothing at all on iOS while
+   looking correct in Chrome. Keeping the 3D context one level below the mask
+   avoids the interaction.
+
+   Plane and grid stay separate so the looping motion is a pure translate3d
+   (composited) rather than a background-position repaint. The grid is one cell
+   taller than its parent and travels exactly one cell, so the loop is seamless. */
 .auth-horizon {
-  position: absolute;
+  /* Fixed, not absolute, for two reasons. Absolute offsets resolve against the
+     *padding* box, and the login shell carries .safe-area-plus -- on a notched
+     iPhone that floated the horizon ~58px off the bottom and 24px in from each
+     side, reading as a rectangle rather than a full-bleed horizon. And the shell
+     is min-h-screen, so it grows past the viewport when the card is tall (signup
+     adds a field; Apple sign-in and forgot-password added more), pushing a
+     bottom-anchored horizon below the fold. The viewport is the correct anchor
+     for both. No ancestor sets transform/filter/contain, so fixed is not
+     trapped into a containing block here. */
+  position: fixed;
   left: 0;
   right: 0;
   bottom: 0;
   height: 42vh;
   overflow: hidden;
+  pointer-events: none;
+  /* Fade the grid out as it approaches the horizon line. The first stop is kept
+     well short of the plane's flattened height so that if a browser does drop
+     the perspective, the grid degrades to a visible flat grid instead of
+     vanishing. */
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0%, rgba(0, 0, 0, 0.55) 20%, #000 100%);
+          mask-image: linear-gradient(to bottom, transparent 0%, rgba(0, 0, 0, 0.55) 20%, #000 100%);
+}
+
+.auth-horizon-stage {
+  position: absolute;
+  inset: 0;
   perspective: 150px;
   perspective-origin: 50% 0%;
-  pointer-events: none;
-  /* Fade the grid out as it approaches the horizon line. */
-  -webkit-mask-image: linear-gradient(to bottom, transparent 0%, rgba(0, 0, 0, 0.55) 38%, #000 100%);
-          mask-image: linear-gradient(to bottom, transparent 0%, rgba(0, 0, 0, 0.55) 38%, #000 100%);
 }
 
 .auth-horizon-plane {
@@ -301,6 +334,7 @@ input::placeholder, textarea::placeholder {
   right: -50%;
   transform-origin: 50% 0%;
   transform: rotateX(74deg);
+  transform-style: preserve-3d;
 }
 
 .auth-horizon-grid {
@@ -313,6 +347,8 @@ input::placeholder, textarea::placeholder {
     repeating-linear-gradient(to right,  rgba(0, 212, 255, 0.20) 0 1px, transparent 1px 56px),
     repeating-linear-gradient(to bottom, rgba(131, 56, 236, 0.22) 0 1px, transparent 1px 56px);
   animation: milo-horizon-scroll 6s linear infinite;
+  will-change: transform;
+  backface-visibility: hidden;
 }
 
 @keyframes milo-horizon-scroll {
