@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Upload, Database, Download, LogOut, LogIn, Film, Tv, Trash2, AlertTriangle } from 'lucide-react';
+import { Upload, Database, Download, LogOut, LogIn, Film, Tv, Mic, Trash2, AlertTriangle } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import LetterboxdImportModal from '../LetterboxdImportModal';
 import { useMovies } from '../../utils/MovieContext';
@@ -7,19 +7,15 @@ import { IS_CLOUD } from '../../utils/mode';
 import { getSupabase } from '../../utils/supabase';
 import { api as movieApi } from '../../api/movieApi';
 import { tvApi } from '../../api/tvApi';
+import { podcastApi } from '../../api/podcastApi';
 
-const EXPORT_COLUMNS = [
-  'title',
-  'rating',
-  'genre',
-  'date_watched',
-  'notes',
-  'director',
-  'release_year',
-  'type',
-  'num_seasons',
-  'total_episodes',
-];
+// Base columns shared by every export; each content type appends its own.
+const BASE_EXPORT_COLUMNS = ['title', 'rating', 'genre', 'date_watched', 'notes', 'status'];
+const EXPORT_COLUMNS = {
+  movies: [...BASE_EXPORT_COLUMNS, 'director', 'release_year'],
+  tv: [...BASE_EXPORT_COLUMNS, 'num_seasons', 'total_episodes'],
+  podcasts: [...BASE_EXPORT_COLUMNS, 'host', 'publisher', 'episodes_heard'],
+};
 
 function escapeCsvValue(value) {
   if (value === null || value === undefined) return '';
@@ -55,7 +51,7 @@ function todayStamp() {
 export default function DataSection({ session, onSignOut }) {
   const [isImportOpen, setIsImportOpen] = useState(false);
   const [exportError, setExportError] = useState('');
-  const [exporting, setExporting] = useState(null); // 'movies' | 'tv' | null
+  const [exporting, setExporting] = useState(null); // 'movies' | 'tv' | 'podcasts' | null
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [deletePhrase, setDeletePhrase] = useState('');
   const [deleting, setDeleting] = useState(false);
@@ -68,8 +64,10 @@ export default function DataSection({ session, onSignOut }) {
     try {
       const rows = kind === 'movies'
         ? await movieApi.getMovies({ type: 'movie' })
-        : await tvApi.getSeries();
-      const csv = rowsToCsv(rows || [], EXPORT_COLUMNS);
+        : kind === 'tv'
+        ? await tvApi.getSeries()
+        : await podcastApi.getPodcasts();
+      const csv = rowsToCsv(rows || [], EXPORT_COLUMNS[kind]);
       triggerDownload(`milo-${kind}-${todayStamp()}.csv`, csv);
     } catch (err) {
       console.error('Export failed:', err);
@@ -128,7 +126,7 @@ export default function DataSection({ session, onSignOut }) {
         <p className="text-white/60 text-sm mb-4">
           Download your library as CSV. Opens in any spreadsheet app and re-imports cleanly.
         </p>
-        <div className="grid sm:grid-cols-2 gap-3">
+        <div className="grid sm:grid-cols-2 md:grid-cols-3 gap-3">
           <button
             onClick={() => handleExport('movies')}
             disabled={exporting !== null}
@@ -154,6 +152,20 @@ export default function DataSection({ session, onSignOut }) {
                 {exporting === 'tv' ? 'Exporting…' : 'TV CSV'}
               </div>
               <div className="text-white/50 text-xs">Download all TV series</div>
+            </div>
+            <Download size={18} className="ml-auto text-white/40 shrink-0" />
+          </button>
+          <button
+            onClick={() => handleExport('podcasts')}
+            disabled={exporting !== null}
+            className="flex items-center gap-3 p-4 rounded-lg glass border border-white/10 hover:border-neon-purple/50 transition-all text-left disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <Mic size={22} className="text-neon-purple shrink-0" />
+            <div>
+              <div className="text-white font-medium">
+                {exporting === 'podcasts' ? 'Exporting…' : 'Podcasts CSV'}
+              </div>
+              <div className="text-white/50 text-xs">Download all podcasts</div>
             </div>
             <Download size={18} className="ml-auto text-white/40 shrink-0" />
           </button>

@@ -113,18 +113,47 @@ function CloudAuthGate({ children }) {
 
   if (!session) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-black via-slate-900 to-black p-6">
+      <div className="relative overflow-hidden min-h-screen flex items-center justify-center bg-gradient-to-br from-black via-slate-900 to-black p-6">
+        {/* Ambient tri-color glow blobs — the three content-type accents.
+            bg-neon-magenta (not magenta-500): Tailwind has no "magenta"
+            palette entry; the app's magenta is the custom neon-magenta. */}
+        <motion.div
+          aria-hidden="true"
+          className="pointer-events-none absolute -top-24 -left-32 w-96 h-96 rounded-full bg-cyan-500/20 blur-3xl"
+          animate={{ opacity: [0.3, 0.6, 0.3], scale: [1, 1.15, 1] }}
+          transition={{ duration: 9, repeat: Infinity, ease: 'easeInOut' }}
+        />
+        <motion.div
+          aria-hidden="true"
+          className="pointer-events-none absolute -bottom-32 -right-24 w-96 h-96 rounded-full bg-neon-magenta/20 blur-3xl"
+          animate={{ opacity: [0.25, 0.5, 0.25], scale: [1.1, 1, 1.1] }}
+          transition={{ duration: 12, repeat: Infinity, ease: 'easeInOut' }}
+        />
+        <motion.div
+          aria-hidden="true"
+          className="pointer-events-none absolute top-1/3 right-1/4 w-80 h-80 rounded-full bg-purple-500/20 blur-3xl"
+          animate={{ opacity: [0.2, 0.45, 0.2], scale: [1, 1.2, 1] }}
+          transition={{ duration: 15, repeat: Infinity, ease: 'easeInOut' }}
+        />
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="w-full max-w-md glass rounded-2xl p-8 neon-border-cyan"
+          className="relative z-10 w-full max-w-md glass rounded-2xl p-8 neon-border-cyan"
         >
-          <div className="flex items-center gap-3 mb-6">
-            <Sparkles className="text-neon-cyan" size={28} />
-            <h1 className="text-2xl font-bold neon-text-cyan">MILO Cloud</h1>
+          <div className="flex flex-col items-center text-center mb-6">
+            <Sparkles className="text-neon-cyan mb-3" size={24} />
+            <div className="flex items-center gap-3">
+              <h1 className="text-4xl font-bold leading-none">
+                <span className="neon-text-cyan">MI</span><span className="neon-text-magenta">LO</span>
+              </h1>
+              <span className="rounded-full border border-cyan-500/40 text-cyan-300 text-[10px] uppercase tracking-widest px-2 py-0.5">
+                Cloud
+              </span>
+            </div>
+            <p className="text-white/40 font-light text-sm mt-3">Movie Intelligence &amp; Learning Overseer</p>
           </div>
-          <p className="text-white/70 mb-6 text-sm">
-            {mode === 'signin' ? 'Sign in to your movie & TV tracker.' : 'Create your account.'}
+          <p className="text-white/70 mb-6 text-sm text-center">
+            {mode === 'signin' ? 'Sign in to your movie, TV & podcast tracker.' : 'Create your account — track movies, TV & podcasts.'}
           </p>
           <form onSubmit={submit} className="space-y-4">
             <label className="block">
@@ -171,6 +200,7 @@ function CloudAuthGate({ children }) {
           >
             {mode === 'signin' ? "Don't have an account? Sign up" : 'Already have an account? Sign in'}
           </button>
+          <p className="mt-6 text-white/30 text-xs text-center">Your library, your keys — AI powered</p>
         </motion.div>
       </div>
     );
