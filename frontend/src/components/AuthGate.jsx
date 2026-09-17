@@ -101,7 +101,9 @@ function CloudAuthGate({ children }) {
 
   // While redirecting a signed-out root visitor to /landing, show the
   // loading placeholder rather than briefly flashing the sign-in form.
-  if (loading || (!session && location.pathname === '/')) {
+  // Native never performs that redirect (sign-in IS the entry screen), so
+  // it must fall through to the sign-in form — not spin here forever.
+  if (loading || (!IS_NATIVE && !session && location.pathname === '/')) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-black text-white/60">
         Loading…
