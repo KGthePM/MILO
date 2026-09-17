@@ -134,7 +134,10 @@ export default function PodcastsPage() {
                       initial={{ opacity: 0, y: 20 }}
                       animate={{ opacity: 1, y: 0 }}
                       exit={{ opacity: 0, y: -20 }}
-                      transition={{ duration: 0.3, delay: index * 0.05 }}
+                      // Cap the stagger: index * 0.05 unbounded queued seconds
+                      // of entrance animations on large libraries and froze
+                      // navigation until they finished (iOS).
+                      transition={{ duration: 0.3, delay: Math.min(index * 0.05, 0.4) }}
                       key={podcast.id}
                     >
                       <PodcastCard podcast={podcast} onEdit={handleEdit} />
