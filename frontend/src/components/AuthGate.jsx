@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
 import { LogIn, Mail, Lock, Sparkles, AtSign } from 'lucide-react';
 import { IS_CLOUD } from '../utils/mode';
+import { IS_NATIVE } from '../utils/native';
 import { getSupabase } from '../utils/supabase';
 import { useNavigate, useLocation } from 'react-router-dom';
 
@@ -52,8 +53,10 @@ function CloudAuthGate({ children }) {
 
   // Send signed-out visitors landing on the root to the marketing page
   // instead of dropping them straight onto the sign-in form.
+  // Native apps open at / and stay there: sign-in IS the welcome screen,
+  // never the web marketing page.
   useEffect(() => {
-    if (!loading && !session && location.pathname === '/') {
+    if (!loading && !session && !IS_NATIVE && location.pathname === '/') {
       navigate('/landing', { replace: true });
     }
   }, [loading, session, location.pathname, navigate]);

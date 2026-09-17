@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import MoviesPage from './pages/MoviesPage';
 import TVSeriesPage from './pages/TVSeriesPage';
 import PodcastsPage from './pages/PodcastsPage';
@@ -13,13 +13,20 @@ import { MovieProvider } from './utils/MovieContext';
 import { TVSeriesProvider } from './utils/TVSeriesContext';
 import { PodcastProvider } from './utils/PodcastContext';
 import { IS_CLOUD } from './utils/mode';
+import { IS_NATIVE } from './utils/native';
 
 function App() {
   return (
     <BrowserRouter>
       <Routes>
-        {/* Public marketing page — rendered outside the auth gate */}
-        <Route path="/landing" element={<LandingPage />} />
+        {/* Public marketing page — rendered outside the auth gate.
+            Web only: inside the Capacitor app the route redirects to /, so
+            marketing/Download/clone CTAs are structurally unreachable on
+            iOS (and any stray /landing link lands on sign-in). */}
+        <Route
+          path="/landing"
+          element={IS_NATIVE ? <Navigate to="/" replace /> : <LandingPage />}
+        />
         {/* Everything else is gated behind auth (cloud mode) */}
         <Route path="/*" element={<GatedApp />} />
       </Routes>
