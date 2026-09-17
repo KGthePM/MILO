@@ -31,4 +31,11 @@ Thumbs.db
 *.swo
 
 # Node
-node_modules.test-account
+node_modules
+
+# Local test artifacts
+.test-account
+ios-screenshot-*.png
+
+# Supabase CLI
+supabase/.temp/
