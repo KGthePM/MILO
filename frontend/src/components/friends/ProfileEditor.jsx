@@ -84,7 +84,7 @@ export default function ProfileEditor({ onSignOut }) {
         <button
           type="button"
           onClick={onSignOut}
-          className="flex items-center gap-2 px-4 py-2 rounded-lg bg-black/30 border border-white/10 text-white/70 hover:text-white hover:bg-white/10"
+          className="w-full flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-black/30 border border-white/10 text-white/70 hover:text-white hover:bg-white/10"
         >
           <LogOut size={16} /> Sign out
         </button>
