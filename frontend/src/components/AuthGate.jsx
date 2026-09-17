@@ -1,10 +1,15 @@
 import { useEffect, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
-import { LogIn, Mail, Lock, Sparkles, AtSign } from 'lucide-react';
+import { LogIn, Mail, Lock, AtSign, Film, Tv, Podcast } from 'lucide-react';
+import { CONTENT_TYPES, CONTENT_TYPE_KEYS, ACCENT } from '../utils/contentTypes';
 import { IS_CLOUD } from '../utils/mode';
 import { IS_NATIVE } from '../utils/native';
 import { getSupabase } from '../utils/supabase';
 import { useNavigate, useLocation } from 'react-router-dom';
+
+// Icons for the sign-in capability pills. Keyed off the content-type registry
+// so adding a type there surfaces a gap here rather than silently dropping it.
+const TYPE_ICONS = { movie: Film, tv: Tv, podcast: Podcast };
 
 export default function AuthGate({ children }) {
   if (!IS_CLOUD) return children;
@@ -135,22 +140,53 @@ function CloudAuthGate({ children }) {
           animate={{ opacity: [0.2, 0.45, 0.2], scale: [1, 1.2, 1] }}
           transition={{ duration: 15, repeat: Infinity, ease: 'easeInOut' }}
         />
+        {/* Synthwave horizon — a perspective grid receding toward the middle
+            of the screen. Pure CSS (.auth-horizon in index.css) so it costs no
+            React renders and loops as a composited translate3d. */}
+        <div aria-hidden="true" className="auth-horizon">
+          <div className="auth-horizon-plane">
+            <div className="auth-horizon-grid" />
+          </div>
+        </div>
+
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           className="relative z-10 w-full max-w-md glass rounded-2xl p-8 neon-border-cyan"
         >
-          <div className="flex flex-col items-center text-center mb-6">
-            <Sparkles className="text-neon-cyan mb-3" size={24} />
+          {/* Tri-accent arc orbiting the card edge. */}
+          <div aria-hidden="true" className="auth-sheen" />
+          <div className="flex flex-col items-center text-center mb-5">
             <div className="flex items-center gap-3">
               <h1 className="text-4xl font-bold leading-none">
-                <span className="neon-text-cyan">MI</span><span className="neon-text-magenta">LO</span>
+                <span className="neon-text-cyan auth-power-on-cyan">MI</span><span className="neon-text-magenta auth-power-on-magenta">LO</span>
               </h1>
               <span className="rounded-full border border-cyan-500/40 text-cyan-300 text-[10px] uppercase tracking-widest px-2 py-0.5">
                 Cloud
               </span>
             </div>
             <p className="text-white/40 font-light text-sm mt-3">Movie Intelligence &amp; Learning Overseer</p>
+          </div>
+
+          {/* What MILO actually covers — the one thing the sign-in screen never
+              said out loud. Built from the registry, with ACCENT class strings
+              kept literal so Tailwind's extractor can see them. */}
+          <div className="flex items-center justify-center gap-2 mb-5">
+            {CONTENT_TYPE_KEYS.map((key, i) => {
+              const { nav, accent } = CONTENT_TYPES[key];
+              const Icon = TYPE_ICONS[key];
+              const a = ACCENT[accent];
+              return (
+                <span
+                  key={key}
+                  className={`auth-pill flex items-center gap-1.5 rounded-full border ${a.ringSoft} bg-black/30 px-3 py-1.5 text-xs ${a.text}`}
+                  style={{ animationDelay: `${1.05 + i * 0.12}s` }}
+                >
+                  <Icon size={13} />
+                  {nav}
+                </span>
+              );
+            })}
           </div>
           <p className="text-white/70 mb-6 text-sm text-center">
             {mode === 'signin' ? 'Sign in to your movie, TV & podcast tracker.' : 'Create your account — track movies, TV & podcasts.'}
