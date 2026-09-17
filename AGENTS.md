@@ -1,11 +1,19 @@
 # Project Structure
 
-Dual-mode monorepo — one React frontend, two data/AI backends selected at build time:
+Dual-mode monorepo — one React frontend, two data/AI backends selected at build time, three delivery targets:
 - `backend/` - Node.js + Express 5 + SQLite (port 3000, **local mode only** — unused in cloud)
 - `frontend/` - React 18 + Vite 5 + Tailwind, react-router-dom v7 (port 5173)
+- `frontend/ios/` - Capacitor 8 Xcode project wrapping the cloud-mode web build (TestFlight / App Store)
+- `frontend/netlify/functions/` - the single serverless function (`zai-proxy.js`); cloud mode only
 - `movies.db` - SQLite DB, auto-created in repo root (local mode only; gitignored)
-- `supabase/migrations/` - 9 SQL migrations for cloud Postgres
+- `supabase/migrations/` - 10 SQL migrations for cloud Postgres
+- `MILO_Landing/milo-landing/` - standalone static marketing site; **not** part of the frontend build
+- `scripts/` - one-off Node scripts (SQLite → Supabase migration)
+- `Archive_doc_update/` - design/plan notes kept for context (not live docs)
 - Cloud build deploys to Netlify (`frontend/netlify.toml`, SPA fallback → `/index.html`)
+
+`README.md` predates cloud mode and the iOS app — it documents local mode only. Don't trust it as a spec.
+`CLAUDE.md` is the condensed sibling of this file; keep the two in sync when either changes.
 
 # Startup
 
@@ -19,6 +27,8 @@ Manual (two terminals):
 
 Both servers bind `0.0.0.0`. Frontend build: `cd frontend && npm run build` → `dist/`.
 
+Cloud-mode work that touches the z.ai proxy needs `netlify dev` rather than `npm run dev` — plain Vite does not serve `frontend/netlify/functions/`.
+
 # Dual-Mode Switching
 
 Mode is a **build-time** flag: `VITE_MILO_MODE=local` (default) | `cloud`.
@@ -27,7 +37,23 @@ Mode is a **build-time** flag: `VITE_MILO_MODE=local` (default) | `cloud`.
 - API clients (`movieApi.js`, `tvApi.js`, `podcastApi.js`, `assistantApi.js`, `tasteApi.js`, `feedbackApi.js`) are **switchers**: top-level `await import('./cloud')` if `IS_CLOUD`, else `./*.local.js` (relative `/api` fetches).
 - `cloud.js` calls Supabase directly from the browser; `*.local.js` hit the Express backend via the Vite `/api` proxy (`vite.config.js`: `/api` → `http://localhost:3000`).
 - `friendsApi.js` / `FriendsContext.jsx` are **cloud-only** (profiles, friend requests, friends' libraries) — no `.local.js` variant.
-- In cloud mode the backend is entirely unused; AuthGate wraps the app with Supabase email/password auth.
+- In cloud mode the backend is entirely unused; AuthGate wraps the app with Supabase email/password auth **plus Sign in with Apple** (`utils/appleAuth.js`: native sheet via `@capgo/capacitor-social-login` → `signInWithIdToken`; web via `signInWithOAuth` redirect). Password reset: "Forgot password?" on the sign-in card → `resetPasswordForEmail` → recovery link lands on the public `/reset-password` route (`pages/ResetPasswordPage.jsx`).
+
+# Frontend Structure & Routing
+
+`App.jsx` splits the tree in two:
+- `/landing` — public, rendered **outside** `AuthGate` (`pages/LandingPage.jsx`). On native it redirects to `/`, so marketing / Download / clone-the-repo CTAs are structurally unreachable inside the iOS app.
+- `/*` → `GatedApp` — wrapped in `AuthGate` and the three content providers (`MovieProvider` → `TVSeriesProvider` → `PodcastProvider`), with `MiloAssistantFab` rendered globally inside the gate.
+
+Routes: `/` and `/movies` → `MoviesPage`, `/tv`, `/podcasts`, `/timeline`, `/settings`, plus `/friends` and `/friends/:friendId` which are **mounted only when `IS_CLOUD`**.
+
+Components live in feature subdirectories: `components/movies/`, `tv/`, `podcasts/`, `friends/`, `timeline/`, `settings/`, `recommendations/`, and `shared/`.
+
+Only two files remain directly in `frontend/src/components/`: `AuthGate.jsx` (cloud-mode auth wrapper, used by `App.jsx`) and `LetterboxdImportModal.jsx` (used by `settings/DataSection.jsx`). Everything else lives in a feature subdirectory — put new components there rather than at the root.
+
+Eight unreferenced files that used to sit at that root were deleted (`AddMovieModal`, `EditMovieModal`, `GenreFilter`, `MovieCard`, `Recommendations`, `SearchFilter`, `Stats`, `Navigation`). The first seven shadowed the real implementations in `components/movies/` and `components/shared/`; `Navigation.jsx` was a pre-router three-tab bar superseded by `shared/FloatingCommandBar.jsx` and the per-page tab rows. If one turns up in an old branch or diff, it is not the live copy.
+
+**Design tokens**: `frontend/tailwind.config.js` defines the neon palette (`neon-cyan` `#00d4ff`, `neon-magenta` `#ff006e`, `neon-purple` `#8338ec`, `neon-yellow` `#ffbe0b`, `bg-primary/secondary/tertiary`) and matching `boxShadow` entries. `frontend/src/index.css` holds `.glass`, `.neon-text-{cyan,magenta,purple}`, `.gradient-hyphen`, and the gradient body background. `darkMode: 'class'` is set but the app is dark-only in practice.
 
 # Database — Local Mode (SQLite)
 
@@ -47,7 +73,39 @@ Extra tables (also auto-created, idempotent):
 
 # Database — Cloud Mode (Supabase)
 
-Postgres with RLS scoping every row to `auth.uid() = user_id`. Schema across `supabase/migrations/0001_init.sql` … `0009_podcasts.sql` (movies, profiles, friends, taste_profiles, rec_feedback; `0009` adds the four podcast columns).
+Postgres with RLS scoping every row to `auth.uid() = user_id`. Schema across `supabase/migrations/0001_init.sql` … `0010_delete_account.sql` (movies, profiles, friends, taste_profiles, rec_feedback; `0009` adds the four podcast columns).
+
+**`0010_delete_account.sql`** adds `public.delete_my_account(p_confirm text)` — a `security definer` RPC providing the in-app account deletion required by App Store Guideline 5.1.1(v). supabase-js has no client-side "delete my own user" call (that lives in the admin API, which needs the service-role key we must never ship), so the function deletes the `auth.users` row for `auth.uid()` only, cascading through movies / taste_profiles / rec_feedback / profiles / friends. It returns `{ok:false, error}` unless the caller passes the literal string `'DELETE'`, so a stray call can't nuke an account. Invoked from `components/settings/DataSection.jsx` via `getSupabase().rpc('delete_my_account', { p_confirm: 'DELETE' })`.
+
+# iOS App (Capacitor)
+
+`frontend/ios/` is a **committed** Capacitor 8 Xcode project — SPM-based (`ios/App/CapApp-SPM`), **no CocoaPods / Podfile**. `frontend/capacitor.config.json`: appId `com.kgthePM.milo`, appName `MILO`, `webDir: "dist"`. Development team `4CC8W8RW2F` (automatic signing); `ios/ExportOptions.plist` targets `app-store-connect` with symbol upload. `ios/App/App/PrivacyInfo.xcprivacy` is the required privacy manifest; app icon + dark splash live in `ios/App/App/Assets.xcassets`.
+
+The iOS app is nothing more than the **cloud-mode** web build inside a native shell:
+```bash
+cd frontend
+npm run build          # needs VITE_MILO_MODE=cloud + Supabase vars in .env.local
+npx cap sync ios       # copies dist/ → ios/App/App/public, refreshes plugins
+npx cap open ios       # archive / upload from Xcode
+```
+`ios/App/App/public/` is **generated** — `cap sync` overwrites it wholesale, so never hand-edit it.
+
+**Native plugins** (SPM, no CocoaPods): `@capacitor/app` (deep links, app state), `@capacitor/preferences` (session + app-lock storage), `@capacitor/status-bar`, `@capgo/capacitor-social-login` (Sign in with Apple native sheet), `@aparajita/capacitor-biometric-auth` (Face ID app lock).
+
+**Sign in with Apple server config** (Supabase dashboard → Authentication → Providers → Apple): enable the provider and add `com.kgthePM.milo` to Client IDs — that's all the **native** flow needs (gotrue validates Apple's id_token against Apple's public keys; no Services ID / secret required). The **web** OAuth flow additionally needs a Services ID (`com.kgthePM.milo.web` or similar) with return URL `https://gewqxrzfpxjijqnlfilp.supabase.co/auth/v1/callback`, a Sign-in-with-Apple key (.p8), and the resulting client secret JWT pasted into the provider. Also add redirect URLs under Authentication → URL Configuration: `https://milo-movies.netlify.app/**` (site URL + reset-password redirect). `App.entitlements` carries `com.apple.developer.applesignin` (registered in the pbxproj via CODE_SIGN_ENTITLEMENTS).
+
+**`IS_NATIVE`** (`frontend/src/utils/native.js`) is computed synchronously from `window.location.protocol` (`capacitor:`, `ionic:`, or `file:`). Every `@capacitor/*` API inside that module is **dynamically imported**, so plugin modules never enter a plain-web bundle graph at module-eval time. Preserve that pattern when adding native code.
+
+Native-only branches currently in the codebase — all deliberate:
+1. **Session storage** (`utils/supabase.js`): `localStorage` inside a WKWebView can be purged by iOS under storage pressure, silently signing users out. On native, supabase-js gets `nativeStorageAdapter()`, an async adapter backed by `@capacitor/preferences` (UserDefaults).
+2. **`detectSessionInUrl: !IS_NATIVE`** (same file): at `capacitor://localhost` there is no URL to parse tokens out of; email links are handled by the deep-link listener (`utils/authDeepLinks.js`, registered in AuthGate on native; exchanges the PKCE `?code=` via `exchangeCodeForSession`, routes recovery links to `/reset-password`) instead.
+3. **Routing** (`App.jsx`): `/landing` → `<Navigate to="/" />` on native; `/reset-password` is public on both platforms.
+4. **Auth landing** (`components/AuthGate.jsx`): the `!IS_NATIVE && !session && pathname === '/'` guards send web visitors to the marketing page, while native users go straight to sign-in.
+5. **z.ai proxy URL** (`ai/providers/_openaiCompatible.js`): the relative `/.netlify/functions/zai-proxy` path resolves to nothing at `capacitor://localhost`, so `resolveProxyUrl()` falls back to the absolute deployed endpoint (`https://milo-movies.netlify.app/...`). `VITE_ZAI_PROXY_URL` overrides both the web and native cases.
+6. **Sign in with Apple** (`utils/appleAuth.js`): native uses the OS sheet + `signInWithIdToken` (no nonce — see the file header for why); web uses the OAuth redirect. The button shows on both.
+7. **Face ID app lock** (`utils/appLock.js` + `components/shared/AppLockGate.jsx`): privacy curtain that re-prompts on cold start and background→foreground; toggle lives in Settings → Security (tab only rendered on native). `AppLockGate` sits inside `AuthGate` around the content providers. Requires `NSFaceIDUsageDescription` in Info.plist (set) and the setting persists via `@capacitor/preferences`.
+
+**Safe areas**: `frontend/index.html` sets `viewport-fit=cover, user-scalable=no` plus `apple-mobile-web-app-capable`; `index.css` pads `html, body` with `env(safe-area-inset-*)` and sets `overscroll-behavior: none` to kill rubber-band scroll. Dropping either leaves content under the notch / home indicator.
 
 # AI — Local Mode (Ollama)
 
@@ -66,13 +124,13 @@ Providers called **directly from the browser** with user-supplied keys; keys liv
 
 **z.ai / z.ai Coding exception**: `api.z.ai` doesn't send CORS headers, so a direct browser `fetch()` to it is blocked (surfaces as a raw "NetworkError when attempting to fetch resource"). Those two providers set `proxied: true` in `createOpenAICompatibleProvider` (`_openaiCompatible.js`) and, in cloud mode, route through `frontend/netlify/functions/zai-proxy.js` instead of calling `api.z.ai` directly. That function forwards the request server-side to a hardcoded allowlist of z.ai endpoints — the key passes through per-request only, never logged or stored. All other providers are confirmed CORS-friendly and still call their APIs directly from the browser. Testing this locally requires `netlify dev` (not plain `vite dev`), since Vite alone doesn't serve Netlify Functions.
 
-**60-second ceiling on the proxy**: Netlify Functions are killed at a hard, non-configurable 60s (streaming does not raise it — only the payload cap, 6 MB → 20 MB). Past that the function returns an opaque `{"errorType":...,"errorMessage":"An unknown error has occurred"}` Lambda crash body, which surfaced as `z.ai Coding: 502 …`. Four mitigations, all in place: the proxy aborts upstream at 55s and returns a real JSON 504; the proxy pipes `stream: true` responses through unbuffered (`supportsStreaming: true` on both z.ai providers) so a request cut short still yields partial text — salvaged by `parseRecommendationsJSON` for recommendations, shown as a partial reply in the assistant; `jsonGenerationMaxTokens: 3000` (vs the 8000 default) keeps generations short; and `thinking: {type:'disabled'}` is requested for both JSON generation and assistant chat, with `_openaiCompatible.chat()` retrying once without the field on an HTTP 400 (some GLM models refuse to have reasoning disabled). If 60s still proves too tight, the next step is porting the proxy to a Supabase Edge Function (150s free / 400s paid).
+**60-second ceiling on the proxy**: Netlify Functions are killed at a hard, non-configurable 60s (streaming does not raise it — only the payload cap, 6 MB → 20 MB). Past that the function returns an opaque `{"errorType":...,"errorMessage":"An unknown error has occurred"}` Lambda crash body, which surfaced as `z.ai Coding: 502 …`. Mitigations, all in place: the proxy aborts upstream at 55s and returns a real JSON 504; the client's own `CLIENT_TIMEOUT_MS` sits just under at 58s (merged with the caller's signal via `withDeadline()`), so whichever layer gives up first the user sees a real message; the proxy pipes `stream: true` responses through unbuffered (`supportsStreaming: true` on both z.ai providers) so a request cut short still yields partial text — salvaged by `parseRecommendationsJSON` for recommendations, shown as a partial reply in the assistant; `jsonGenerationMaxTokens: 3000` (vs the 8000 default) keeps generations short; and `thinking: {type:'disabled'}` is requested for both JSON generation and assistant chat, with `_openaiCompatible.chat()` retrying once without the field on an HTTP 400 (some GLM models refuse to have reasoning disabled). `formatHttpError()` recognizes the Lambda `errorType`/`errorMessage` shape and reports a timeout rather than a bogus provider error. If 60s still proves too tight, the next step is porting the proxy to a Supabase Edge Function (150s free / 400s paid). See `Archive_doc_update/zai-cloud-502-known-issue.md`.
 
 # Backend Modules
 
 - `server.js` — entry; loads `.env`, mounts `/api` routes, binds `0.0.0.0`.
 - `database.js` — SQLite conn, schema init, auto-migration.
-- `routes/index.js` — single ~920-line router: all CRUD + `/ollama/*`, `/recommendations`, `/assistant`, `/analytics`, import endpoints.
+- `routes/index.js` — single ~960-line router: all CRUD + `/ollama/*`, `/recommendations`, `/assistant`, `/analytics`, import endpoints. `/api/movies` takes a `type` query param and serves all three content types; `/api/tv` is a TV-only legacy alias. There is deliberately **no** `/api/podcasts` — podcasts use `/api/movies?type=podcast`.
 - `ollama-recommender.js` — recommendations + 24h cache.
 - `assistant.js` — chat assistant over Ollama (filters to `status='watched'`).
 - `taste-analyzer.js` — builds the persisted taste profile.
@@ -81,7 +139,9 @@ Providers called **directly from the browser** with user-supplied keys; keys liv
 
 Frontend state: `MovieContext.jsx`, `TVSeriesContext.jsx`, `PodcastContext.jsx`, `FriendsContext.jsx` (React Context, consumed via hooks).
 
-**Podcast lookup**: `frontend/src/api/podcastLookup.js` hits the iTunes Search API directly from the browser (CORS confirmed, `access-control-allow-origin: *`) for artwork + autofill; degrades to manual entry on failure.
+**Podcast lookup**: `frontend/src/api/podcastLookup.js` hits the iTunes Search API directly from the browser (CORS confirmed, `access-control-allow-origin: *`) for artwork + autofill; degrades to manual entry on failure. `release_year` is deliberately **not** autofilled — the iTunes `releaseDate` is the latest-episode date, not the show's debut.
+
+**Genres**: `frontend/src/utils/genreColors.js` splits `SCREEN_GENRE_COLORS` (film/TV) from `PODCAST_GENRE_COLORS` (iTunes `primaryGenreName` strings); `GenreFilter` takes a `genres` prop so each section filters its own list, and unknown genres fall back gracefully. Users can override colors per genre through `utils/userPrefs.js` — persisted at `milo.userPrefs.v1` in `localStorage`, with `subscribeUserPrefs()` notifying listeners and `getEffectiveGenreColors()` merging defaults with overrides.
 
 # Cloud Mode Build
 
@@ -90,6 +150,12 @@ Required build-time env (see `frontend/.env.example`):
 - `VITE_SUPABASE_URL`
 - `VITE_SUPABASE_ANON_KEY`
 
+Optional: `VITE_ZAI_PROXY_URL` (overrides the z.ai proxy endpoint for both web and native builds).
+
+# Marketing Site
+
+`MILO_Landing/milo-landing/` is a **separate, standalone static site** — a single `index.html` with CDN Tailwind, three screenshots, and its own `netlify.toml` (no build command; `publish = "."`; CSP / `X-Frame-Options` headers; SPA fallback). It shares no code with `frontend/` and is deployed as its own Netlify site. Do not confuse it with the in-app `/landing` route, which is the React-rendered `pages/LandingPage.jsx`.
+
 # Import / Migration
 
 - Letterboxd import: parsed client-side in `frontend/src/api/letterboxdClient.js` (local → backend API; cloud → direct Supabase inserts).
@@ -97,4 +163,4 @@ Required build-time env (see `frontend/.env.example`):
 
 # No Verification Commands
 
-No tests, linting, type-checking, or CI are configured. `backend` `npm test` just errors. **Do not run `npm test`, `npm run lint`, or `tsc`** — they will fail or no-op.
+No tests, linting, type-checking, or CI are configured. `backend` `npm test` just errors. **Do not run `npm test`, `npm run lint`, or `tsc`** — they will fail or no-op. The closest available check is `cd frontend && npm run build`, which surfaces import and syntax errors.

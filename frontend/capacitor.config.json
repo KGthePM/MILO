@@ -1,5 +1,6 @@
 {
   "appId": "com.kgthePM.milo",
   "appName": "MILO",
-  "webDir": "dist"
+  "webDir": "dist",
+  "backgroundColor": "#0a0a0f"
 }

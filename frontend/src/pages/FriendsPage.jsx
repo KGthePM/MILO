@@ -21,7 +21,7 @@ function FriendsPageInner() {
   ];
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-bg-primary via-bg-secondary to-bg-primary">
+    <div className="min-h-screen safe-area bg-gradient-to-br from-bg-primary via-bg-secondary to-bg-primary">
       <div className="container mx-auto px-4 py-8 pb-32 max-w-3xl">
         <motion.header initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} className="mb-6">
           <div className="flex items-center justify-between gap-3 flex-wrap">

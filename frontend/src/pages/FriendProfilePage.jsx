@@ -102,7 +102,7 @@ function FriendProfilePageInner() {
   const name = profile?.display_name || (profile?.username ? `@${profile.username}` : 'Friend');
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-bg-primary via-bg-secondary to-bg-primary">
+    <div className="min-h-screen safe-area bg-gradient-to-br from-bg-primary via-bg-secondary to-bg-primary">
       <div className="container mx-auto px-4 py-8 pb-32 max-w-5xl">
         <Link to="/friends" className="inline-flex items-center gap-2 text-white/60 hover:text-white mb-4 text-sm">
           <ArrowLeft size={16} /> Back to friends

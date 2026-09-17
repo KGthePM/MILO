@@ -1,16 +1,19 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowLeft, Settings as SettingsIcon, Sparkles, Palette, Database, User } from 'lucide-react';
+import { ArrowLeft, Settings as SettingsIcon, Sparkles, Palette, Database, User, ShieldCheck } from 'lucide-react';
 import { FriendsProvider } from '../utils/FriendsContext';
 import { IS_CLOUD } from '../utils/mode';
+import { IS_NATIVE } from '../utils/native';
 import { getSupabase } from '../utils/supabase';
 import AIProvidersSection from '../components/settings/AIProvidersSection';
 import AppearanceSection from '../components/settings/AppearanceSection';
 import DataSection from '../components/settings/DataSection';
+import SecuritySection from '../components/settings/SecuritySection';
 import ProfileEditor from '../components/friends/ProfileEditor';
 
 const TABS = [
   ...(IS_CLOUD ? [{ id: 'profile', label: 'Profile', icon: User }] : []),
+  ...(IS_NATIVE ? [{ id: 'security', label: 'Security', icon: ShieldCheck }] : []),
   { id: 'ai', label: 'AI providers', icon: Sparkles },
   { id: 'appearance', label: 'Appearance', icon: Palette },
   { id: 'data', label: 'Data', icon: Database },
@@ -37,7 +40,8 @@ function SettingsContent() {
   };
 
   return (
-    <div className="min-h-screen px-4 sm:px-8 py-8 max-w-6xl mx-auto">
+    <div className="min-h-screen safe-area">
+      <div className="px-4 sm:px-8 py-8 pb-32 max-w-6xl mx-auto">
       <div className="flex items-center justify-between mb-8">
         <div className="flex items-center gap-3">
           <Link
@@ -84,12 +88,14 @@ function SettingsContent() {
               <ProfileEditor onSignOut={handleSignOut} />
             </FriendsProvider>
           )}
+          {activeTab === 'security' && <SecuritySection />}
           {activeTab === 'ai' && <AIProvidersSection />}
           {activeTab === 'appearance' && <AppearanceSection />}
           {activeTab === 'data' && (
             <DataSection session={session} onSignOut={handleSignOut} />
           )}
         </div>
+      </div>
       </div>
     </div>
   );

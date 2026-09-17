@@ -8,7 +8,9 @@ import SettingsPage from './pages/SettingsPage';
 import FriendsPage from './pages/FriendsPage';
 import FriendProfilePage from './pages/FriendProfilePage';
 import AuthGate from './components/AuthGate';
+import ResetPasswordPage from './pages/ResetPasswordPage';
 import MiloAssistantFab from './components/shared/MiloAssistantFab';
+import AppLockGate from './components/shared/AppLockGate';
 import { MovieProvider } from './utils/MovieContext';
 import { TVSeriesProvider } from './utils/TVSeriesContext';
 import { PodcastProvider } from './utils/PodcastContext';
@@ -27,6 +29,11 @@ function App() {
           path="/landing"
           element={IS_NATIVE ? <Navigate to="/" replace /> : <LandingPage />}
         />
+        {/* Password reset — public: the recovery-link landing state must
+            render even when the link is expired (no session). Once a valid
+            recovery session exists, the page itself collects the new
+            password via updateUser(). */}
+        <Route path="/reset-password" element={<ResetPasswordPage />} />
         {/* Everything else is gated behind auth (cloud mode) */}
         <Route path="/*" element={<GatedApp />} />
       </Routes>
@@ -37,7 +44,8 @@ function App() {
 function GatedApp() {
   return (
     <AuthGate>
-      <MovieProvider>
+      <AppLockGate>
+        <MovieProvider>
         <TVSeriesProvider>
           <PodcastProvider>
             <Routes>
@@ -54,6 +62,7 @@ function GatedApp() {
           </PodcastProvider>
         </TVSeriesProvider>
       </MovieProvider>
+      </AppLockGate>
     </AuthGate>
   );
 }
