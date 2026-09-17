@@ -81,7 +81,7 @@ function SettingsContent() {
         <div className="flex-1 min-w-0 glass rounded-2xl p-6 border border-white/10">
           {activeTab === 'profile' && IS_CLOUD && (
             <FriendsProvider>
-              <ProfileEditor />
+              <ProfileEditor onSignOut={handleSignOut} />
             </FriendsProvider>
           )}
           {activeTab === 'ai' && <AIProvidersSection />}
