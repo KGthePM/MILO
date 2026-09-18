@@ -146,7 +146,13 @@ function MoviesPageContent() {
       case 'to_watch':
         return (
           <div className="space-y-6">
-            {toWatchMovies.length === 0 ? (
+            {loading ? (
+              <SkeletonGrid contentType="movie" />
+            ) : error ? (
+              <div className="text-center py-12 text-red-400">
+                <p>{error}</p>
+              </div>
+            ) : toWatchMovies.length === 0 ? (
               <EmptyState
                 contentType="movie"
                 variant="watchlist"
@@ -172,7 +178,9 @@ function MoviesPageContent() {
         );
 
       case 'timeline':
-        return <Timeline movies={watchedMovies} />;
+        // Guard on loading: watched* is [] until the fetch lands, and the
+        // list below would otherwise state outright that there is no history.
+        return loading ? <SkeletonGrid contentType="movie" count={3} /> : <Timeline movies={watchedMovies} />;
 
       case 'recommendations':
         return (

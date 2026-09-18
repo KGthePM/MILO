@@ -73,7 +73,7 @@ function FriendsPageInner() {
 
         {tab === 'friends' && (
           <div className="space-y-3">
-            {friends.length === 0 ? (
+            {loading ? null : friends.length === 0 ? (
               <EmptyState
                 accent="magenta"
                 icon={Users}

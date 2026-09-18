@@ -163,7 +163,13 @@ export default function PodcastsPage() {
       case 'to_listen':
         return (
           <div className="space-y-6">
-            {toListen.length === 0 ? (
+            {loading ? (
+              <SkeletonGrid contentType="podcast" />
+            ) : error ? (
+              <div className="text-center py-12 text-red-400">
+                <p>{error}</p>
+              </div>
+            ) : toListen.length === 0 ? (
               <EmptyState
                 contentType="podcast"
                 variant="watchlist"
@@ -195,7 +201,9 @@ export default function PodcastsPage() {
         );
 
       case 'timeline':
-        return <PodcastTimeline podcasts={listened} onEdit={handleEdit} />;
+        // Guard on loading: watched* is [] until the fetch lands, and the
+        // list below would otherwise state outright that there is no history.
+        return loading ? <SkeletonGrid contentType="podcast" count={3} /> : <PodcastTimeline podcasts={listened} onEdit={handleEdit} />;
 
       case 'recommendations':
         return (
