@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Lock, ShieldCheck } from 'lucide-react';
 import { IS_NATIVE } from '../../utils/native';
+import NeonHorizon from './NeonHorizon';
 
 // Privacy curtain for the Face ID app lock. While locked, MILO renders only
 // this screen — no library data mounts, no providers fetch. Unlocking
@@ -62,14 +63,19 @@ export default function AppLockGate({ children }) {
   if (!IS_NATIVE || locked === false) return children;
   if (locked === null) {
     return (
-      <div className="min-h-screen bg-black flex items-center justify-center">
-        <Lock className="text-white/20" size={40} />
+      <div className="relative overflow-hidden min-h-screen bg-black flex items-center justify-center">
+        <NeonHorizon variant="calm" className="absolute inset-0" />
+        <Lock className="relative z-10 text-white/20" size={40} />
       </div>
     );
   }
+  // Calm variant, and deliberately no warp on unlock: this curtain shows on
+  // every cold start and every return from background, so a flourish here
+  // would be seen dozens of times a day. Ambient only.
   return (
-    <div className="min-h-screen bg-black flex items-center justify-center">
-      <div className="text-center">
+    <div className="relative overflow-hidden min-h-screen bg-black flex items-center justify-center">
+      <NeonHorizon variant="calm" className="absolute inset-0" />
+      <div className="relative z-10 text-center">
         <Lock className="text-white/20" size={40} />
         <p className="text-white/40 text-sm mt-4">MILO is locked</p>
         <button

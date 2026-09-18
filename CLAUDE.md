@@ -47,6 +47,8 @@ Components live in **feature subdirectories**: `components/movies/`, `tv/`, `pod
 
 Only two files remain directly in `frontend/src/components/`: `AuthGate.jsx` (the cloud-mode auth wrapper) and `LetterboxdImportModal.jsx` (used by `settings/DataSection.jsx`). Everything else belongs in a feature subdirectory — put new components there rather than at the root. Eight unreferenced leftovers that had shadowed the real `movies/` and `shared/` versions were deleted; if you see one reappear in an old diff or branch, it is not the live copy.
 
+**Sign-in backdrop**: `frontend/src/utils/neonHorizon.js` draws the synthwave grid + starfield on a `<canvas>` (wrapper: `components/shared/NeonHorizon.jsx`), used by `AuthGate`, `AppLockGate`, and the `/landing` hero. It is the app's only `requestAnimationFrame`/canvas code. It replaced a CSS perspective grid that iOS smeared into a colour wash — WebKit rasterises a 3D-transformed layer once into a fixed backing store and then lets the perspective magnify that bitmap, so the near hairlines were a stretched cache. **Do not reintroduce a CSS-3D-transformed fine-line texture.** The DPR cap of 2 and the 30fps native idle cap are deliberate (see commit `bf98bb8` on WKWebView main-thread starvation); lane density is derived from viewport width so it survives rotation. `WARP_MS` is exported and shared with AuthGate's sign-in hand-off timer — don't fork the constant.
+
 **Design tokens**: the neon palette lives in `frontend/tailwind.config.js` (`neon-cyan` `#00d4ff`, `neon-magenta` `#ff006e`, `neon-purple` `#8338ec`, `neon-yellow`, plus `bg-primary/secondary/tertiary`) and `frontend/src/index.css` (`.glass`, `.neon-text-*`, gradient body). `darkMode: 'class'`, but the app is dark-only in practice.
 
 ## Database — Local Mode (SQLite)
@@ -90,7 +92,7 @@ Native-only branches currently in place:
 - **Session storage** (`utils/supabase.js`): `localStorage` inside a WKWebView can be purged by iOS under storage pressure, silently logging users out. On native, supabase-js is given an async storage adapter backed by `@capacitor/preferences` (UserDefaults). `detectSessionInUrl` is also disabled on native — confirmation links go through the deep-link listener instead.
 - **Routing** (`App.jsx`): `/landing` redirects to `/` on native, so marketing / Download / clone-the-repo CTAs are structurally unreachable inside the app.
 - **z.ai proxy URL** (`ai/providers/_openaiCompatible.js`): the page origin is `capacitor://localhost`, so the relative `/.netlify/functions/zai-proxy` path resolves to nothing. `resolveProxyUrl()` falls back to the absolute deployed URL; `VITE_ZAI_PROXY_URL` overrides both cases.
-- **Safe areas**: `index.html` sets `viewport-fit=cover`; `index.css` pads `html, body` with `env(safe-area-inset-*)` and sets `overscroll-behavior: none` to kill rubber-band scroll.
+- **Safe areas**: `index.html` sets `viewport-fit=cover`; `index.css` sets `overscroll-behavior: none` to kill rubber-band scroll, and applies the insets via the `.safe-area` / `.safe-area-plus` classes that each page shell carries — **not** on `html, body`, which double-applied them and made every page taller than the viewport (see the comment at `index.css:32`).
 
 `ios/App/App/PrivacyInfo.xcprivacy` is the required privacy manifest.
 

@@ -105,7 +105,7 @@ Native-only branches currently in the codebase — all deliberate:
 6. **Sign in with Apple** (`utils/appleAuth.js`): native uses the OS sheet + `signInWithIdToken` (no nonce — see the file header for why); web uses the OAuth redirect. The button shows on both.
 7. **Face ID app lock** (`utils/appLock.js` + `components/shared/AppLockGate.jsx`): privacy curtain that re-prompts on cold start and background→foreground; toggle lives in Settings → Security (tab only rendered on native). `AppLockGate` sits inside `AuthGate` around the content providers. Requires `NSFaceIDUsageDescription` in Info.plist (set) and the setting persists via `@capacitor/preferences`.
 
-**Safe areas**: `frontend/index.html` sets `viewport-fit=cover, user-scalable=no` plus `apple-mobile-web-app-capable`; `index.css` pads `html, body` with `env(safe-area-inset-*)` and sets `overscroll-behavior: none` to kill rubber-band scroll. Dropping either leaves content under the notch / home indicator.
+**Safe areas**: `frontend/index.html` sets `viewport-fit=cover, user-scalable=no` plus `apple-mobile-web-app-capable`; `index.css` sets `overscroll-behavior: none` to kill rubber-band scroll, and applies the insets through the `.safe-area` / `.safe-area-plus` classes that each page shell carries — **not** on `html, body`. Padding the document elements added the insets on top of each page's own `min-height: 100vh`, so every page overflowed the viewport, and the rule matched `html` *and* `body`, applying them twice; see the comment at `index.css:32`. Dropping the shell classes leaves content under the notch / home indicator.
 
 # AI — Local Mode (Ollama)
 

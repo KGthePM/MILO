@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { motion } from 'framer-motion';
+import { motion, useReducedMotion } from 'framer-motion';
 import { LogIn, Mail, Lock, AtSign, Film, Tv, Podcast, KeyRound } from 'lucide-react';
 import { CONTENT_TYPES, CONTENT_TYPE_KEYS, ACCENT } from '../utils/contentTypes';
 import { IS_CLOUD } from '../utils/mode';
@@ -8,6 +8,8 @@ import { getSupabase } from '../utils/supabase';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { nativeAppleSignIn, webAppleSignIn, maybeApplyAppleDisplayName } from '../utils/appleAuth';
 import { registerAuthDeepLinkListener } from '../utils/authDeepLinks';
+import NeonHorizon from './shared/NeonHorizon';
+import { WARP_MS, prefersReducedMotion } from '../utils/neonHorizon';
 
 // Icons for the sign-in capability pills. Keyed off the content-type registry
 // so adding a type there surfaces a gap here rather than silently dropping it.
@@ -28,8 +30,17 @@ function CloudAuthGate({ children }) {
   const [error, setError] = useState(null);
   const [submitting, setSubmitting] = useState(false);
   const [info, setInfo] = useState(null);
+  // Warp-out: on a real sign-in the backdrop accelerates into hyperspace for
+  // WARP_MS before the app mounts, so the first sign-in feels like an event.
+  const [warping, setWarping] = useState(false);
+  const sessionRef = useRef(null);
+  const formShownRef = useRef(false);
+  const warpTimerRef = useRef(null);
   const navigate = useNavigate();
   const location = useLocation();
+  // The .auth-* reduced-motion block in index.css can't reach these three
+  // framer-motion blobs, so they looped even with Reduce Motion on.
+  const reduceMotion = useReducedMotion();
   const pathRef = useRef(location.pathname);
   useEffect(() => { pathRef.current = location.pathname; }, [location.pathname]);
 
@@ -46,12 +57,34 @@ function CloudAuthGate({ children }) {
 
     sb.auth.getSession().then(({ data }) => {
       if (!mounted) return;
+      sessionRef.current = data.session;
       setSession(data.session);
       setLoading(false);
       maybeRedirect(data.session);
     });
-    const { data: sub } = sb.auth.onAuthStateChange((_event, s) => {
+    const { data: sub } = sb.auth.onAuthStateChange((event, s) => {
       if (!mounted) return;
+      // Play the warp only when the user actually watched themselves sign in.
+      // All three guards are load-bearing: `SIGNED_IN` plus no prior session
+      // plus "the form was on screen" together rule out cold-start session
+      // restore via getSession() and token refreshes, either of which would
+      // otherwise bolt WARP_MS onto every single app launch. Both the password
+      // path and the Apple path land here, so this covers both.
+      if (
+        s && !sessionRef.current && formShownRef.current &&
+        event === 'SIGNED_IN' && !prefersReducedMotion()
+      ) {
+        setWarping(true);
+        warpTimerRef.current = setTimeout(() => {
+          if (!mounted) return;
+          sessionRef.current = s;
+          setSession(s);
+          setWarping(false);
+          maybeRedirect(s);
+        }, WARP_MS);
+        return; // hold the sign-in screen mounted while the backdrop warps
+      }
+      sessionRef.current = s;
       setSession(s);
       maybeRedirect(s);
     });
@@ -65,6 +98,7 @@ function CloudAuthGate({ children }) {
       mounted = false;
       sub.subscription?.unsubscribe();
       removeDeepLink?.();
+      if (warpTimerRef.current) clearTimeout(warpTimerRef.current);
     };
   }, [navigate]);
 
@@ -166,6 +200,9 @@ function CloudAuthGate({ children }) {
   }
 
   if (!session) {
+    // Read by the auth listener above to tell a watched sign-in apart from a
+    // silent session restore. Assigning during render is safe — it's idempotent.
+    formShownRef.current = true;
     return (
       <div className="relative overflow-hidden min-h-screen flex items-center justify-center bg-gradient-to-br from-black via-slate-900 to-black safe-area-plus">
         {/* Ambient tri-color glow blobs — the three content-type accents.
@@ -174,38 +211,32 @@ function CloudAuthGate({ children }) {
         <motion.div
           aria-hidden="true"
           className="pointer-events-none absolute -top-24 -left-32 w-96 h-96 rounded-full bg-cyan-500/20 blur-3xl"
-          animate={{ opacity: [0.3, 0.6, 0.3], scale: [1, 1.15, 1] }}
-          transition={{ duration: 9, repeat: Infinity, ease: 'easeInOut' }}
+          animate={reduceMotion ? undefined : { opacity: [0.3, 0.6, 0.3], scale: [1, 1.15, 1] }}
+          transition={reduceMotion ? undefined : { duration: 9, repeat: Infinity, ease: 'easeInOut' }}
         />
         <motion.div
           aria-hidden="true"
           className="pointer-events-none absolute -bottom-32 -right-24 w-96 h-96 rounded-full bg-neon-magenta/20 blur-3xl"
-          animate={{ opacity: [0.25, 0.5, 0.25], scale: [1.1, 1, 1.1] }}
-          transition={{ duration: 12, repeat: Infinity, ease: 'easeInOut' }}
+          animate={reduceMotion ? undefined : { opacity: [0.25, 0.5, 0.25], scale: [1.1, 1, 1.1] }}
+          transition={reduceMotion ? undefined : { duration: 12, repeat: Infinity, ease: 'easeInOut' }}
         />
         <motion.div
           aria-hidden="true"
           className="pointer-events-none absolute top-1/3 right-1/4 w-80 h-80 rounded-full bg-purple-500/20 blur-3xl"
-          animate={{ opacity: [0.2, 0.45, 0.2], scale: [1, 1.2, 1] }}
-          transition={{ duration: 15, repeat: Infinity, ease: 'easeInOut' }}
+          animate={reduceMotion ? undefined : { opacity: [0.2, 0.45, 0.2], scale: [1, 1.2, 1] }}
+          transition={reduceMotion ? undefined : { duration: 15, repeat: Infinity, ease: 'easeInOut' }}
         />
-        {/* Synthwave horizon — a perspective grid receding toward the middle
-            of the screen. Pure CSS (.auth-horizon in index.css) so it costs no
-            React renders and loops as a composited translate3d. The extra
-            -stage element is required: the fade mask and the perspective have to
-            sit on separate elements or WebKit flattens the grid away entirely.
-            See the comment in index.css before merging these divs. */}
-        <div aria-hidden="true" className="auth-horizon">
-          <div className="auth-horizon-stage">
-            <div className="auth-horizon-plane">
-              <div className="auth-horizon-grid" />
-            </div>
-          </div>
-        </div>
+        {/* Synthwave deep-field — grid, starfield and horizon glow, drawn on a
+            canvas (utils/neonHorizon.js). This used to be a CSS perspective
+            grid, which iOS smeared into a colour wash after a second or two;
+            see the .auth-backdrop comment in index.css. Sits after the glow
+            blobs so its additive line art composites over them. */}
+        <NeonHorizon phase={warping ? 'warp' : 'idle'} className="auth-backdrop" />
 
         <motion.div
           initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
+          animate={warping ? { opacity: 0, y: -14, scale: 1.06 } : { opacity: 1, y: 0, scale: 1 }}
+          transition={warping ? { duration: 0.45, ease: 'easeIn' } : undefined}
           className="relative z-10 w-full max-w-md glass rounded-2xl p-8 neon-border-cyan"
         >
           {/* Tri-accent arc orbiting the card edge. */}
@@ -281,7 +312,7 @@ function CloudAuthGate({ children }) {
             {error && <div className="text-red-400 text-sm">{error}</div>}
             {info && <div className="text-green-400 text-sm">{info}</div>}
             <button
-              type="submit" disabled={submitting}
+              type="submit" disabled={submitting || warping}
               className="w-full flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-cyan-500/20 border border-cyan-500/40 hover:bg-cyan-500/30 transition-all text-white font-semibold disabled:opacity-50"
             >
               <LogIn size={16} />
@@ -298,7 +329,7 @@ function CloudAuthGate({ children }) {
               </div>
               <button
                 onClick={appleSignIn}
-                disabled={submitting}
+                disabled={submitting || warping}
                 className="w-full flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-white text-black font-semibold hover:bg-white/90 transition-all disabled:opacity-50"
               >
                 {/* Apple logo — inline SVG (lucide has no Apple mark) */}

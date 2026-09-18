@@ -1,6 +1,7 @@
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { IS_CLOUD } from '../utils/mode';
+import NeonHorizon from '../components/shared/NeonHorizon';
 import { getSupabase } from '../utils/supabase';
 import { useEffect, useState, useCallback } from 'react';
 import {
@@ -143,6 +144,9 @@ export default function LandingPage() {
           <div className="absolute top-1/4 left-1/4 w-64 h-64 bg-neon-cyan/10 rounded-full blur-3xl float-animation"></div>
           <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-neon-magenta/10 rounded-full blur-3xl float-animation" style={{ animationDelay: '2s' }}></div>
         </div>
+        {/* Same canvas deep-field as the sign-in screen. Absolute, not fixed —
+            this is a hero section, not the viewport. */}
+        <NeonHorizon className="absolute inset-0" />
 
         <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
           <motion.div initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.8, ease: 'easeOut' }}>
