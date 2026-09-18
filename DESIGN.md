@@ -73,4 +73,5 @@ Podcasts say **Listened / To Listen**, movies and TV say **Watched / To Watch** 
 - Reduced-motion path exists, and covers framer-motion as well as CSS.
 - Animated-layer count is bounded and loops pause when hidden.
 - Empty, loading, and error states all designed — not just the happy path.
+- **Every empty state is gated on `loading` first.** A list is `[]` before its fetch lands, so an ungated empty state asserts "you have nothing" to someone who has plenty. Seven tabs shipped this way for months because the old empty state was too quiet to notice it — a better empty state is also a better bug detector. Check the *sibling* branches of a conditional too, not just the one being edited; the watched tabs were guarded and the watchlist and timeline tabs next to them were not.
 - Checked in **portrait and landscape** on a real device. WKWebView is the target, not desktop Chrome; the bug that prompted this document was invisible everywhere else.

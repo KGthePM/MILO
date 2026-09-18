@@ -55,6 +55,8 @@ Only two files remain directly in `frontend/src/components/`: `AuthGate.jsx` (cl
 
 Eight unreferenced files that used to sit at that root were deleted (`AddMovieModal`, `EditMovieModal`, `GenreFilter`, `MovieCard`, `Recommendations`, `SearchFilter`, `Stats`, `Navigation`). The first seven shadowed the real implementations in `components/movies/` and `components/shared/`; `Navigation.jsx` was a pre-router three-tab bar superseded by `shared/FloatingCommandBar.jsx` and the per-page tab rows. If one turns up in an old branch or diff, it is not the live copy.
 
+**Sign-in backdrop**: `frontend/src/utils/neonHorizon.js` draws the synthwave grid + starfield on a `<canvas>` (wrapper: `components/shared/NeonHorizon.jsx`), used by `AuthGate`, `AppLockGate`, and the `/landing` hero. It is the app's only `requestAnimationFrame`/canvas code. It replaced a CSS perspective grid that iOS smeared into a colour wash — WebKit rasterises a 3D-transformed layer once into a fixed backing store and then lets the perspective magnify that bitmap, so the near hairlines were a stretched cache. **Do not reintroduce a CSS-3D-transformed fine-line texture.** The DPR cap of 2 and the 30fps native idle cap are deliberate (WKWebView main-thread starvation); lane density derives from viewport width so it survives rotation. `WARP_MS` is exported and shared with AuthGate's sign-in hand-off timer — don't fork the constant.
+
 **Design tokens**: `frontend/tailwind.config.js` defines the neon palette (`neon-cyan` `#00d4ff`, `neon-magenta` `#ff006e`, `neon-purple` `#8338ec`, `neon-yellow` `#ffbe0b`, `bg-primary/secondary/tertiary`) and matching `boxShadow` entries. `frontend/src/index.css` holds `.glass`, `.neon-text-{cyan,magenta,purple}`, `.gradient-hyphen`, and the gradient body background. `darkMode: 'class'` is set but the app is dark-only in practice.
 
 # Database — Local Mode (SQLite)
@@ -122,7 +124,7 @@ Ollama env (in `backend/.env`, all have defaults): `OLLAMA_URL`, `OLLAMA_MODEL`,
 
 Providers called **directly from the browser** with user-supplied keys; keys live in `localStorage` under `milo.aiSettings.v1` (`frontend/src/utils/aiSettings.js`) and are **never sent to any Milo-controlled server** — with one narrow exception, below.
 
-15 providers in `frontend/src/ai/providers/`: anthropic, cerebras, custom, deepseek, fireworks, googleai, groq, mistral, ollama, openrouter, together, xai, zai, zaiCoding, plus shared `_openaiCompatible.js`. (OpenRouter is the preferred one-key-many-models option.)
+14 providers in `frontend/src/ai/providers/` (anthropic, cerebras, custom, deepseek, fireworks, googleai, groq, mistral, ollama, openrouter, together, xai, zai, zaiCoding) plus shared `_openaiCompatible.js`. (OpenRouter is the preferred one-key-many-models option.)
 
 **z.ai / z.ai Coding exception**: `api.z.ai` doesn't send CORS headers, so a direct browser `fetch()` to it is blocked (surfaces as a raw "NetworkError when attempting to fetch resource"). Those two providers set `proxied: true` in `createOpenAICompatibleProvider` (`_openaiCompatible.js`) and, in cloud mode, route through `frontend/netlify/functions/zai-proxy.js` instead of calling `api.z.ai` directly. That function forwards the request server-side to a hardcoded allowlist of z.ai endpoints — the key passes through per-request only, never logged or stored. All other providers are confirmed CORS-friendly and still call their APIs directly from the browser. Testing this locally requires `netlify dev` (not plain `vite dev`), since Vite alone doesn't serve Netlify Functions.
 
@@ -162,6 +164,7 @@ Optional: `VITE_ZAI_PROXY_URL` (overrides the z.ai proxy endpoint for both web a
 
 - Letterboxd import: parsed client-side in `frontend/src/api/letterboxdClient.js` (local → backend API; cloud → direct Supabase inserts).
 - Migrate local SQLite → Supabase: `node scripts/migrate-sqlite-to-supabase.js --user-id <auth-uid>` (needs `SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY` env).
+- In-app local→cloud migration parses the uploaded `movies.db` **client-side**: `frontend/src/api/dbClient.js` bundles sql.js as WASM (`sql.js/dist/sql-wasm.wasm?url`) so `cloud.js` can read the SQLite file in the browser — no backend involved.
 
 # No Verification Commands
 
