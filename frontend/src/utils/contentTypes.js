@@ -1,3 +1,5 @@
+import { Film, Tv, Mic } from 'lucide-react';
+
 // Single source of truth for MILO's content types.
 //
 // Before this existed, every type branch in the app was a binary ternary
@@ -44,6 +46,13 @@ export const CONTENT_TYPES = {
 };
 
 export const CONTENT_TYPE_KEYS = Object.keys(CONTENT_TYPES);
+
+// Lucide icon per content type. Lives here rather than being re-declared at
+// each call site so adding a type surfaces one gap instead of several silent
+// fallbacks — the same reason the rest of this registry exists.
+export const TYPE_ICONS = { movie: Film, tv: Tv, podcast: Mic };
+
+export const iconFor = (contentType) => TYPE_ICONS[getContentType(contentType).key];
 
 export const isContentType = (t) => Object.prototype.hasOwnProperty.call(CONTENT_TYPES, t);
 

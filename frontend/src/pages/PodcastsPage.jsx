@@ -11,6 +11,8 @@ import SearchFilter from '../components/shared/SearchFilter';
 import GenreFilter from '../components/shared/GenreFilter';
 import Stats from '../components/shared/Stats';
 import FloatingCommandBar from '../components/shared/FloatingCommandBar';
+import EmptyState from '../components/shared/EmptyState';
+import SkeletonGrid from '../components/shared/SkeletonGrid';
 import { PODCAST_GENRE_LIST } from '../utils/genreColors';
 import { CONTENT_TYPES, ACCENT } from '../utils/contentTypes';
 
@@ -69,6 +71,20 @@ export default function PodcastsPage() {
     fetchPodcasts(newParams);
   };
 
+  // An empty grid means one of two different things, and they want
+  // opposite affordances: a library with nothing in it wants an invitation
+  // to add, while an active filter that matched nothing wants a way out.
+  const filtersActive = Boolean(searchTerm) || selectedGenre !== 'All' || selectedDateRange !== 'All time';
+
+  const handleClearFilters = () => {
+    setSearchTerm('');
+    setSelectedGenre('All');
+    setSelectedDateRange('All time');
+    const newParams = { sortBy };
+    setFilterParams(newParams);
+    fetchPodcasts(newParams);
+  };
+
   const handleSortChange = (newSortBy) => {
     setSortBy(newSortBy);
     const newParams = { ...filterParams, sortBy: newSortBy };
@@ -109,23 +125,18 @@ export default function PodcastsPage() {
               genres={GENRE_OPTIONS}
             />
             {loading ? (
-              <div className="text-center py-12">
-                <motion.div
-                  animate={{ rotate: 360 }}
-                  transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
-                  className={`w-12 h-12 border-4 ${A.spinner} border-t-transparent rounded-full mx-auto`}
-                />
-              </div>
+              <SkeletonGrid contentType="podcast" />
             ) : error ? (
               <div className="text-center py-12 text-red-400">
                 <p>{error}</p>
               </div>
             ) : listened.length === 0 ? (
-              <div className="text-center py-12 text-white/50">
-                <Mic size={48} className="mx-auto mb-4 opacity-50" />
-                <p className="text-lg">No podcasts found</p>
-                <p className="text-sm">Add your first podcast to get started!</p>
-              </div>
+              <EmptyState
+                contentType="podcast"
+                variant={filtersActive ? 'filtered' : 'library'}
+                onAction={() => setShowAddModal(true)}
+                onClear={handleClearFilters}
+              />
             ) : (
               <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
                 <AnimatePresence>
@@ -153,11 +164,11 @@ export default function PodcastsPage() {
         return (
           <div className="space-y-6">
             {toListen.length === 0 ? (
-              <div className="text-center py-12 text-white/50">
-                <Mic size={48} className="mx-auto mb-4 opacity-50" />
-                <p className="text-lg">Your listen list is empty</p>
-                <p className="text-sm">Add a podcast you want to try!</p>
-              </div>
+              <EmptyState
+                contentType="podcast"
+                variant="watchlist"
+                onAction={() => setShowAddModal(true)}
+              />
             ) : (
               <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
                 <AnimatePresence>

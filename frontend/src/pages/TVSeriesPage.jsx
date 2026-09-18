@@ -11,6 +11,8 @@ import TVRecommendations from '../components/tv/TVRecommendations';
 import TVTimeline from '../components/tv/TVTimeline';
 import Stats from '../components/shared/Stats';
 import FloatingCommandBar from '../components/shared/FloatingCommandBar';
+import EmptyState from '../components/shared/EmptyState';
+import SkeletonGrid from '../components/shared/SkeletonGrid';
 
 function TVSeriesPageContent() {
   const { series, analytics, loading, error, fetchSeries } = useTVSeries();
@@ -67,6 +69,20 @@ function TVSeriesPageContent() {
     fetchSeries(newParams);
   };
 
+  // An empty grid means one of two different things, and they want
+  // opposite affordances: a library with nothing in it wants an invitation
+  // to add, while an active filter that matched nothing wants a way out.
+  const filtersActive = Boolean(searchTerm) || selectedGenre !== 'All' || selectedDateRange !== 'All time';
+
+  const handleClearFilters = () => {
+    setSearchTerm('');
+    setSelectedGenre('All');
+    setSelectedDateRange('All time');
+    const newParams = { sortBy };
+    setFilterParams(newParams);
+    fetchSeries(newParams);
+  };
+
   const handleSortChange = (newSortBy) => {
     setSortBy(newSortBy);
     const newParams = { ...filterParams, sortBy: newSortBy };
@@ -103,23 +119,18 @@ function TVSeriesPageContent() {
             />
             <GenreFilter selectedGenre={selectedGenre} onGenreChange={handleGenreChange} />
             {loading ? (
-              <div className="text-center py-12">
-                <motion.div
-                  animate={{ rotate: 360 }}
-                  transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
-                  className="w-12 h-12 border-4 border-neon-magenta border-t-transparent rounded-full mx-auto"
-                />
-              </div>
+              <SkeletonGrid contentType="tv" />
             ) : error ? (
               <div className="text-center py-12 text-red-400">
                 <p>{error}</p>
               </div>
             ) : watchedSeries.length === 0 ? (
-              <div className="text-center py-12 text-white/50">
-                <Tv size={48} className="mx-auto mb-4 opacity-50" />
-                <p className="text-lg">No TV series found</p>
-                <p className="text-sm">Add your first TV series to get started!</p>
-              </div>
+              <EmptyState
+                contentType="tv"
+                variant={filtersActive ? 'filtered' : 'library'}
+                onAction={() => setShowAddModal(true)}
+                onClear={handleClearFilters}
+              />
             ) : (
               <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
             <AnimatePresence>
@@ -144,11 +155,11 @@ function TVSeriesPageContent() {
         return (
           <div className="space-y-6">
             {toWatchSeries.length === 0 ? (
-              <div className="text-center py-12 text-white/50">
-                <Tv size={48} className="mx-auto mb-4 opacity-50" />
-                <p className="text-lg">Your watchlist is empty</p>
-                <p className="text-sm">Add a TV series you want to watch!</p>
-              </div>
+              <EmptyState
+                contentType="tv"
+                variant="watchlist"
+                onAction={() => setShowAddModal(true)}
+              />
             ) : (
               <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
                 <AnimatePresence>

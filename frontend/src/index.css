@@ -89,6 +89,11 @@ html, body {
   display: inline-block;
 }
 
+.neon-text-yellow {
+  color: #ffbe0b;
+  text-shadow: 0 0 10px rgba(255, 190, 11, 0.8), 0 0 20px rgba(255, 190, 11, 0.6), 0 0 30px rgba(255, 190, 11, 0.4);
+}
+
 .neon-border-cyan {
   box-shadow: 0 0 5px rgba(0, 212, 255, 0.5),
               0 0 10px rgba(0, 212, 255, 0.3),
@@ -105,6 +110,11 @@ html, body {
   box-shadow: 0 0 5px rgba(131, 56, 236, 0.5),
                0 0 10px rgba(131, 56, 236, 0.3),
                inset 0 0 5px rgba(131, 56, 236, 0.1);
+}
+
+.neon-border-yellow {
+  border: 1px solid rgba(255, 190, 11, 0.5);
+  box-shadow: 0 0 5px rgba(255, 190, 11, 0.5), 0 0 10px rgba(255, 190, 11, 0.3), inset 0 0 5px rgba(255, 190, 11, 0.1);
 }
 
 @keyframes pulse-glow {
@@ -346,12 +356,57 @@ input::placeholder, textarea::placeholder {
   animation: milo-pill-in 0.5s ease-out both;
 }
 
+/* ==========================================================================
+   Empty states & loading skeletons
+   ========================================================================== */
+
+/* Backdrop for EmptyState. Deliberately FLAT — a static repeating gradient with
+   a radial fade, no perspective and no 3D transform. It echoes the sign-in
+   horizon without inheriting the WKWebView rasterisation problem that the
+   .auth-backdrop comment above describes. Nothing here animates. */
+.empty-grid {
+  background-image:
+    repeating-linear-gradient(to right,  rgba(255, 255, 255, 0.055) 0 1px, transparent 1px 44px),
+    repeating-linear-gradient(to bottom, rgba(255, 255, 255, 0.055) 0 1px, transparent 1px 44px);
+  -webkit-mask-image: radial-gradient(ellipse at 50% 42%, #000 0%, transparent 72%);
+          mask-image: radial-gradient(ellipse at 50% 42%, #000 0%, transparent 72%);
+  pointer-events: none;
+}
+
+/* One sweep per skeleton card — a transform-animated overlay, so it composites
+   rather than repainting a background position each frame. Keep it one per
+   card: a sweep per individual bar multiplies the animated-layer count by ~6
+   and that is exactly the pattern bf98bb8 had to undo for iOS nav lag. */
+@keyframes milo-skeleton-sweep {
+  from { transform: translateX(-120%); }
+  to   { transform: translateX(220%); }
+}
+
+.skeleton-sweep::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(
+    100deg,
+    transparent 20%,
+    rgba(255, 255, 255, 0.07) 50%,
+    transparent 80%
+  );
+  animation: milo-skeleton-sweep 1.6s ease-in-out infinite;
+  will-change: transform;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .auth-power-on-cyan,
   .auth-power-on-magenta,
   .auth-sheen,
   .auth-pill {
     animation: none;
+  }
+  .skeleton-sweep::after {
+    animation: none;
+    opacity: 0;
   }
   /* Without the keyframes the power-on classes would leave the wordmark at
      opacity 0 (fill-mode: both), so restore the settled state explicitly. */

@@ -45,6 +45,7 @@ export default function CombinedTimeline({ itemsByType = {} }) {
         countLabel={countLabel}
         emptyIcon={Clock}
         emptyTitle="No watch history yet."
+        emptyAccent="cyan"
         emptyHint="Start adding titles to see your combined timeline!"
         renderCard={(item) => {
           const renderer = RENDERERS[item._type] || RENDERERS.movie;

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
+import EmptyState from '../shared/EmptyState';
 
 // Progressive rendering for large timelines (iOS/WKWebView performance fix).
 //
@@ -64,6 +65,7 @@ export default function TimelineGroupList({
   emptyIcon: EmptyIcon,
   emptyTitle,
   emptyHint,
+  emptyAccent = 'cyan',
 }) {
   const [visibleCount, setVisibleCount] = useState(() =>
     Math.min(INITIAL_GROUPS, groups.length)
@@ -88,11 +90,13 @@ export default function TimelineGroupList({
 
   if (groups.length === 0) {
     return (
-      <div className="text-center py-12 text-white/50">
-        <EmptyIcon size={48} className="mx-auto mb-4 opacity-50" />
-        <p className="text-lg">{emptyTitle}</p>
-        <p className="text-sm">{emptyHint}</p>
-      </div>
+      <EmptyState
+        accent={emptyAccent}
+        icon={EmptyIcon}
+        title={emptyTitle}
+        body={emptyHint}
+        showGhosts={false}
+      />
     );
   }
 

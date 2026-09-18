@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { motion, useReducedMotion } from 'framer-motion';
-import { LogIn, Mail, Lock, AtSign, Film, Tv, Podcast, KeyRound } from 'lucide-react';
-import { CONTENT_TYPES, CONTENT_TYPE_KEYS, ACCENT } from '../utils/contentTypes';
+import { LogIn, Mail, Lock, AtSign, KeyRound } from 'lucide-react';
+import { CONTENT_TYPES, CONTENT_TYPE_KEYS, ACCENT, TYPE_ICONS } from '../utils/contentTypes';
 import { IS_CLOUD } from '../utils/mode';
 import { IS_NATIVE } from '../utils/native';
 import { getSupabase } from '../utils/supabase';
@@ -10,10 +10,6 @@ import { nativeAppleSignIn, webAppleSignIn, maybeApplyAppleDisplayName } from '.
 import { registerAuthDeepLinkListener } from '../utils/authDeepLinks';
 import NeonHorizon from './shared/NeonHorizon';
 import { WARP_MS, prefersReducedMotion } from '../utils/neonHorizon';
-
-// Icons for the sign-in capability pills. Keyed off the content-type registry
-// so adding a type there surfaces a gap here rather than silently dropping it.
-const TYPE_ICONS = { movie: Film, tv: Tv, podcast: Podcast };
 
 export default function AuthGate({ children }) {
   if (!IS_CLOUD) return children;

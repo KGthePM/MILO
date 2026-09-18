@@ -25,6 +25,7 @@ export default function PodcastTimeline({ podcasts, onEdit }) {
         }
         emptyIcon={Clock}
         emptyTitle="No podcasts in your listening history yet."
+        emptyAccent="purple"
         emptyHint="Start adding podcasts to see your timeline!"
         renderCard={(p) => <PodcastCard key={p.id} podcast={p} onEdit={onEdit} />}
       />

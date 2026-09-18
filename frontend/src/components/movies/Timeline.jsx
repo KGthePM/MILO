@@ -25,6 +25,7 @@ export default function Timeline({ movies }) {
         }
         emptyIcon={Clock}
         emptyTitle="No movies in your watch history yet."
+        emptyAccent="cyan"
         emptyHint="Start adding movies to see your timeline!"
         renderCard={(movie) => <MovieCard key={movie.id} movie={movie} />}
       />

@@ -11,6 +11,8 @@ import Timeline from '../components/movies/Timeline';
 import Recommendations from '../components/movies/Recommendations';
 import Stats from '../components/shared/Stats';
 import FloatingCommandBar from '../components/shared/FloatingCommandBar';
+import EmptyState from '../components/shared/EmptyState';
+import SkeletonGrid from '../components/shared/SkeletonGrid';
 
 function MoviesPageContent() {
   const { movies, analytics, loading, error, fetchMovies, fetchAnalytics } = useMovies();
@@ -70,6 +72,20 @@ function MoviesPageContent() {
     fetchMovies(newParams);
   };
 
+  // An empty grid means one of two different things, and they want
+  // opposite affordances: a library with nothing in it wants an invitation
+  // to add, while an active filter that matched nothing wants a way out.
+  const filtersActive = Boolean(searchTerm) || selectedGenre !== 'All' || selectedDateRange !== 'All time';
+
+  const handleClearFilters = () => {
+    setSearchTerm('');
+    setSelectedGenre('All');
+    setSelectedDateRange('All time');
+    const newParams = { sortBy };
+    setFilterParams(newParams);
+    fetchMovies(newParams);
+  };
+
   const handleSortChange = (newSortBy) => {
     setSortBy(newSortBy);
     const newParams = { ...filterParams, sortBy: newSortBy };
@@ -103,23 +119,18 @@ function MoviesPageContent() {
             />
             <GenreFilter selectedGenre={selectedGenre} onGenreChange={handleGenreChange} />
             {loading ? (
-              <div className="text-center py-12">
-                <motion.div
-                  animate={{ rotate: 360 }}
-                  transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
-                  className="w-12 h-12 border-4 border-neon-cyan border-t-transparent rounded-full mx-auto"
-                />
-              </div>
+              <SkeletonGrid contentType="movie" />
             ) : error ? (
               <div className="text-center py-12 text-red-400">
                 <p>{error}</p>
               </div>
             ) : watchedMovies.length === 0 ? (
-              <div className="text-center py-12 text-white/50">
-                <Film size={48} className="mx-auto mb-4 opacity-50" />
-                <p className="text-lg">No movies found</p>
-                <p className="text-sm">Add your first movie to get started!</p>
-              </div>
+              <EmptyState
+                contentType="movie"
+                variant={filtersActive ? 'filtered' : 'library'}
+                onAction={() => setShowAddModal(true)}
+                onClear={handleClearFilters}
+              />
             ) : (
               <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
                 <AnimatePresence>
@@ -136,11 +147,11 @@ function MoviesPageContent() {
         return (
           <div className="space-y-6">
             {toWatchMovies.length === 0 ? (
-              <div className="text-center py-12 text-white/50">
-                <Film size={48} className="mx-auto mb-4 opacity-50" />
-                <p className="text-lg">Your watchlist is empty</p>
-                <p className="text-sm">Add a movie you want to watch to get started!</p>
-              </div>
+              <EmptyState
+                contentType="movie"
+                variant="watchlist"
+                onAction={() => setShowAddModal(true)}
+              />
             ) : (
               <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
                 <AnimatePresence>

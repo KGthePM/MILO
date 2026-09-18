@@ -8,6 +8,7 @@ import FriendCard from '../components/friends/FriendCard';
 import FriendRequestCard from '../components/friends/FriendRequestCard';
 import AddFriendModal from '../components/friends/AddFriendModal';
 import ProfileEditor from '../components/friends/ProfileEditor';
+import EmptyState from '../components/shared/EmptyState';
 
 function FriendsPageInner() {
   const { friends, incoming, outgoing, loading, error } = useFriends();
@@ -73,9 +74,15 @@ function FriendsPageInner() {
         {tab === 'friends' && (
           <div className="space-y-3">
             {friends.length === 0 ? (
-              <p className="text-white/50 text-sm text-center py-8">
-                No friends yet. Tap "Add friend" to send your first request.
-              </p>
+              <EmptyState
+                accent="magenta"
+                icon={Users}
+                title="No one here yet"
+                body="Add a friend and you can see what they're watching \u2014 and they can see you."
+                actionLabel="Add a friend"
+                showGhosts={false}
+                onAction={() => setShowAdd(true)}
+              />
             ) : (
               friends.map((f) => <FriendCard key={f.friendshipId} friend={f} />)
             )}

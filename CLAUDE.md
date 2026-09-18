@@ -4,6 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 > A parallel `AGENTS.md` covers the same ground in more detail; keep the two in sync when either changes.
 > `README.md` predates cloud mode and the iOS app — it documents local mode only. Don't trust it as a spec.
+> Visual and UX intent lives in `DESIGN.md` — the accent registry rules, motion constraints that WKWebView enforces, and the surfaces that get disproportionate care. Read it before building any new UI.
 
 ## Project Overview
 

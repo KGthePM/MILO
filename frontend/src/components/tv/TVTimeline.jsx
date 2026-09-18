@@ -23,6 +23,7 @@ export default function TVTimeline({ series, onEdit }) {
         countLabel={(daySeries) => `${daySeries.length} series watched`}
         emptyIcon={Clock}
         emptyTitle="No TV series in your watch history yet."
+        emptyAccent="magenta"
         emptyHint="Start adding series to see your timeline!"
         renderCard={(s) => <SeriesCard key={s.id} series={s} onEdit={onEdit} />}
       />
