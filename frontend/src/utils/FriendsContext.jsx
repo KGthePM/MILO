@@ -9,7 +9,14 @@ export function FriendsProvider({ children }) {
   const [incoming, setIncoming] = useState([]);
   const [outgoing, setOutgoing] = useState([]);
   const [myProfile, setMyProfile] = useState(null);
-  const [loading, setLoading] = useState(false);
+  // Starts true in cloud mode because the effect below fires a fetch on mount:
+  // starting false meant the first paint had `loading === false` and empty
+  // arrays, so every consumer briefly rendered "you have no friends" at
+  // someone who has plenty. `hasLoaded` separates that first fetch from the
+  // refreshes that follow a mutation — those must not blank out a list that
+  // is already on screen.
+  const [loading, setLoading] = useState(IS_CLOUD);
+  const [hasLoaded, setHasLoaded] = useState(!IS_CLOUD);
   const [error, setError] = useState(null);
 
   const refresh = useCallback(async () => {
@@ -30,6 +37,7 @@ export function FriendsProvider({ children }) {
       setError(e.message);
     } finally {
       setLoading(false);
+      setHasLoaded(true);
     }
   }, []);
 
@@ -71,6 +79,7 @@ export function FriendsProvider({ children }) {
         outgoing,
         myProfile,
         loading,
+        hasLoaded,
         error,
         refresh,
         sendRequest,

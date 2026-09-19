@@ -29,6 +29,7 @@ That failure is not hypothetical: `Stats.jsx` referenced `neon-text-yellow` and 
 - `.neon-border-*` — a 1px border plus outer and inset glow. The standard card edge.
 - `.neon-text-*` — three stacked text-shadows at 10/20/30px. Reserve it for headlines and numbers; it is illegible on body copy.
 - Depth comes from glow and translucency, never from drop shadows or borders that read as "material."
+- **`content-visibility: auto` clips.** It implies paint containment, so anything a descendant paints outside the padding edge — a marker dot straddling a rule, a `.neon-border-*` glow, a badge hanging off a corner — is sheared off. The timeline's date dots shipped as half-moons for exactly this reason. Put the containment on an inner wrapper holding the expensive content, and leave the overhanging decoration on the uncontained parent.
 
 ## 3. Motion
 
@@ -73,5 +74,6 @@ Podcasts say **Listened / To Listen**, movies and TV say **Watched / To Watch** 
 - Reduced-motion path exists, and covers framer-motion as well as CSS.
 - Animated-layer count is bounded and loops pause when hidden.
 - Empty, loading, and error states all designed — not just the happy path.
-- **Every empty state is gated on `loading` first.** A list is `[]` before its fetch lands, so an ungated empty state asserts "you have nothing" to someone who has plenty. Seven tabs shipped this way for months because the old empty state was too quiet to notice it — a better empty state is also a better bug detector. Check the *sibling* branches of a conditional too, not just the one being edited; the watched tabs were guarded and the watchlist and timeline tabs next to them were not.
+- **Every empty state is gated on the *initial* fetch first.** A list is `[]` before its fetch lands, so an ungated empty state asserts "you have nothing" to someone who has plenty. Seven tabs shipped this way for months because the old empty state was too quiet to notice it — a better empty state is also a better bug detector. Check the *sibling* branches of a conditional too, not just the one being edited; the watched tabs were guarded and the watchlist and timeline tabs next to them were not. A `loading` flag that starts `false` is the same bug wearing a guard: the first paint happens before the effect fires, so `!loading && items.length === 0` is momentarily true for everyone — this is what made Friends announce "No one here yet" on every visit. Start it `true` whenever mount triggers a fetch, and keep a separate `hasLoaded` so post-mutation refreshes don't tear down a list that is already on screen.
+- **Tab and filter rows fit the narrowest phone.** A row that hugs its content (`inline-flex`, `w-fit`) silently pushes its last tab past the right edge once a fourth option or a longer label arrives — Timeline lost "Podcasts" that way. On small screens make it a full-width segmented control: `flex-1 min-w-0` per button, tighter padding, `truncate` on the label; restore the hug from `sm:` up.
 - Checked in **portrait and landscape** on a real device. WKWebView is the target, not desktop Chrome; the bug that prompted this document was invisible everywhere else.

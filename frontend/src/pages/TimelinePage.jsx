@@ -56,20 +56,25 @@ export default function TimelinePage() {
           </div>
         </motion.header>
 
-        <motion.div className="mb-6 sm:mb-8 p-1 glass rounded-xl inline-flex">
-          <div className="flex gap-2">
+        {/* Four filters do not fit across a phone at the desktop padding, and
+            the last one ("Podcasts") simply fell off the right edge. On small
+            screens the row is a full-width segmented control that divides the
+            space evenly and shrinks its labels; from sm up it goes back to
+            hugging its content. */}
+        <motion.div className="mb-6 sm:mb-8 p-1 glass rounded-xl flex w-full sm:inline-flex sm:w-auto">
+          <div className="flex w-full gap-1 sm:w-auto sm:gap-2">
             {FILTERS.map(({ id, label, icon: Icon }) => (
               <button
                 key={id}
                 onClick={() => setFilter(id)}
-                className={`flex items-center gap-2 px-4 py-2 sm:px-6 sm:py-3 rounded-lg font-medium text-sm sm:text-base transition-all ${
+                className={`flex min-w-0 flex-1 items-center justify-center gap-1.5 rounded-lg px-2 py-2 text-sm font-medium transition-all sm:flex-none sm:gap-2 sm:px-6 sm:py-3 sm:text-base ${
                   filter === id
                     ? 'bg-gradient-to-r from-neon-cyan/20 to-neon-magenta/20 text-white neon-border-magenta'
                     : 'text-white/70 hover:text-white hover:bg-white/5'
                 }`}
               >
-                <Icon size={16} />
-                {label}
+                <Icon size={16} className="flex-shrink-0" />
+                <span className="truncate">{label}</span>
               </button>
             ))}
           </div>

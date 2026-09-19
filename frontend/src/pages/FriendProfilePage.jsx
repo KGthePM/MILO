@@ -6,6 +6,7 @@ import { getFriendMovies } from '../api/friendsApi';
 import { getSupabase } from '../utils/supabase';
 import { FriendsProvider } from '../utils/FriendsContext';
 import { CONTENT_TYPES, ACCENT } from '../utils/contentTypes';
+import SkeletonGrid from '../components/shared/SkeletonGrid';
 
 const TAB_ICONS = { movie: Film, tv: Tv, podcast: Mic };
 
@@ -125,7 +126,9 @@ function FriendProfilePageInner() {
           </div>
         </motion.header>
 
-        <div className="flex gap-2 mb-4 p-1 glass rounded-xl w-fit">
+        {/* Full-width segmented control on phones: at `w-fit` with desktop
+            padding the third tab ("Podcasts (n)") ran off the right edge. */}
+        <div className="flex gap-1 sm:gap-2 mb-4 p-1 glass rounded-xl w-full sm:w-fit">
           {Object.values(CONTENT_TYPES).map((ct) => {
             const Icon = TAB_ICONS[ct.key];
             const a = ACCENT[ct.accent];
@@ -133,17 +136,18 @@ function FriendProfilePageInner() {
               <button
                 key={ct.key}
                 onClick={() => setTab(ct.key)}
-                className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium ${
+                className={`flex min-w-0 flex-1 items-center justify-center gap-1.5 rounded-lg px-2 py-2 text-sm font-medium sm:flex-none sm:gap-2 sm:px-4 ${
                   tab === ct.key ? `${a.bgSoft} ${a.text}` : 'text-white/70 hover:text-white'
                 }`}
               >
-                <Icon size={16} /> {ct.nav} ({byType[ct.key].length})
+                <Icon size={16} className="flex-shrink-0" />
+                <span className="truncate">{ct.nav} ({byType[ct.key].length})</span>
               </button>
             );
           })}
         </div>
 
-        {loading && <p className="text-white/50">Loading…</p>}
+        {loading && <SkeletonGrid contentType={tab} count={3} />}
         {error && <p className="text-red-400">{error}</p>}
 
         {!loading && !error && (

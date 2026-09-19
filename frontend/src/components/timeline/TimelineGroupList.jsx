@@ -15,8 +15,15 @@ import EmptyState from '../shared/EmptyState';
 //     sentinel ~1200px below the fold scrolls into range (IntersectionObserver)
 //   - caps the entrance stagger (MAX_STAGGER total)
 //   - renders static dots (no infinite animation)
-//   - marks each group `content-visibility: auto` with a size hint so the
-//     browser also skips layout/paint for mounted-but-offscreen groups
+//   - marks each group's *body* `content-visibility: auto` with a size hint so
+//     the browser also skips layout/paint for mounted-but-offscreen groups
+//
+// The containment sits on an inner wrapper rather than the group element
+// itself on purpose: `content-visibility: auto` implies paint containment,
+// which clips descendants at the padding edge. The marker dot is positioned
+// at -left-2 so it straddles the spine, so putting containment on the group
+// sheared off its left half (and all of its glow). The cards are what is
+// expensive to paint; the dot and heading are not.
 
 const INITIAL_GROUPS = 8;
 const BATCH = 6;
@@ -50,8 +57,9 @@ export function groupByDate(items) {
   return groups;
 }
 
-// Rough height estimate (header + single-column card stack, the mobile case)
-// so content-visibility placeholders don't shift the scrollbar much.
+// Rough height estimate of a group body (heading + single-column card stack,
+// the mobile case) so content-visibility placeholders don't shift the
+// scrollbar much.
 function estimateHeight(count) {
   return Math.min(96 + count * 200, 1400);
 }
@@ -112,24 +120,28 @@ export default function TimelineGroupList({
             delay: Math.min(index * 0.05, MAX_STAGGER),
           }}
           className={`relative pl-8 ${borderClass}`}
-          style={{
-            contentVisibility: 'auto',
-            containIntrinsicSize: `auto ${estimateHeight(group.items.length)}px`,
-          }}
         >
           {/* Static marker dot — an animated glow here multiplied by every
-              date group and ran forever; that repaint loop never idled. */}
+              date group and ran forever; that repaint loop never idled.
+              Lives outside the contained body so it isn't clipped in half. */}
           <div
             className={`absolute -left-2 top-0 w-4 h-4 rounded-full ${dotClass}`}
           />
-          <div className="mb-4">
-            <h3 className="text-lg font-semibold text-white/90 mb-1">
-              {formatDateHeading(group.date)}
-            </h3>
-            <p className="text-sm text-white/50">{countLabel(group.items)}</p>
-          </div>
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {group.items.map(renderCard)}
+          <div
+            style={{
+              contentVisibility: 'auto',
+              containIntrinsicSize: `auto ${estimateHeight(group.items.length)}px`,
+            }}
+          >
+            <div className="mb-4">
+              <h3 className="text-lg font-semibold text-white/90 mb-1">
+                {formatDateHeading(group.date)}
+              </h3>
+              <p className="text-sm text-white/50">{countLabel(group.items)}</p>
+            </div>
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+              {group.items.map(renderCard)}
+            </div>
           </div>
         </motion.div>
       ))}

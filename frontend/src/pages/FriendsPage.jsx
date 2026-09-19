@@ -8,12 +8,18 @@ import FriendCard from '../components/friends/FriendCard';
 import FriendRequestCard from '../components/friends/FriendRequestCard';
 import AddFriendModal from '../components/friends/AddFriendModal';
 import ProfileEditor from '../components/friends/ProfileEditor';
+import FriendRowsSkeleton from '../components/friends/FriendRowsSkeleton';
 import EmptyState from '../components/shared/EmptyState';
 
 function FriendsPageInner() {
-  const { friends, incoming, outgoing, loading, error } = useFriends();
+  const { friends, incoming, outgoing, loading, hasLoaded, error } = useFriends();
   const [tab, setTab] = useState('friends');
   const [showAdd, setShowAdd] = useState(false);
+
+  // The first fetch, as opposed to the refresh that follows accepting or
+  // removing someone. Only the first one gets skeletons; a refresh leaves the
+  // list it already has on screen rather than tearing it down and back up.
+  const initialLoad = loading && !hasLoaded;
 
   const tabs = [
     { id: 'friends', label: `Friends${friends.length ? ` (${friends.length})` : ''}`, icon: Users },
@@ -69,11 +75,12 @@ function FriendsPageInner() {
         </div>
 
         {error && <div className="text-red-400 mb-4 text-sm">{error}</div>}
-        {loading && <div className="text-white/50 text-sm">Loading…</div>}
 
         {tab === 'friends' && (
           <div className="space-y-3">
-            {loading ? null : friends.length === 0 ? (
+            {initialLoad ? (
+              <FriendRowsSkeleton count={3} />
+            ) : friends.length === 0 ? (
               <EmptyState
                 accent="magenta"
                 icon={Users}
@@ -93,7 +100,9 @@ function FriendsPageInner() {
           <div className="space-y-6">
             <section>
               <h2 className="text-white/70 text-sm font-semibold mb-2">Incoming</h2>
-              {incoming.length === 0 ? (
+              {initialLoad ? (
+                <FriendRowsSkeleton count={2} ring="border-neon-magenta/20" />
+              ) : incoming.length === 0 ? (
                 <p className="text-white/40 text-sm">No incoming requests.</p>
               ) : (
                 <div className="space-y-2">
@@ -105,7 +114,9 @@ function FriendsPageInner() {
             </section>
             <section>
               <h2 className="text-white/70 text-sm font-semibold mb-2">Sent</h2>
-              {outgoing.length === 0 ? (
+              {initialLoad ? (
+                <FriendRowsSkeleton count={1} ring="border-neon-magenta/20" />
+              ) : outgoing.length === 0 ? (
                 <p className="text-white/40 text-sm">No outgoing requests.</p>
               ) : (
                 <div className="space-y-2">
