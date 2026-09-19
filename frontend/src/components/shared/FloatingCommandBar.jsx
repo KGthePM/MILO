@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Film, Tv, Mic, Clock, Plus, RefreshCw, Settings as SettingsIcon, LogIn, LogOut, Users } from 'lucide-react';
+import { Film, Tv, Mic, Clock, LayoutDashboard, Plus, RefreshCw, Settings as SettingsIcon, LogIn, LogOut, Users } from 'lucide-react';
 import { IS_CLOUD } from '../../utils/mode';
 import { getSupabase } from '../../utils/supabase';
 import { CONTENT_TYPES, ACCENT, getContentType } from '../../utils/contentTypes';
@@ -77,6 +77,7 @@ export default function FloatingCommandBar({ page, onAdd, onRefresh }) {
   };
 
   const onTimelinePath = location.pathname.startsWith('/timeline');
+  const onDashboardPath = location.pathname.startsWith('/dashboard');
   const isActivePath = (key) =>
     key === 'movie'
       ? location.pathname === '/' || location.pathname === '/movies'
@@ -126,6 +127,18 @@ export default function FloatingCommandBar({ page, onAdd, onRefresh }) {
         >
           <Clock size={18} />
           <span className="hidden sm:inline">Timeline</span>
+        </Link>
+        <Link
+          to="/dashboard"
+          title="Dashboard"
+          className={`flex items-center gap-2 px-2.5 sm:px-4 h-11 rounded-xl font-medium text-sm transition-all shrink-0 ${
+            onDashboardPath
+              ? `bg-white/15 text-white ${A.border}`
+              : 'text-white/60 hover:text-white hover:bg-white/5'
+          }`}
+        >
+          <LayoutDashboard size={18} />
+          <span className="hidden sm:inline">Dashboard</span>
         </Link>
 
         <Divider />

@@ -235,7 +235,7 @@ function MoviesPageContent() {
           </div>
         </motion.header>
 
-        <Stats analytics={analytics} type="movie" />
+        <Stats analytics={analytics} type="movie" loading={loading} />
 
         <motion.div className="mb-6 sm:mb-8 p-1 glass rounded-xl">
           <div className="flex gap-2">

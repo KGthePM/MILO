@@ -254,7 +254,7 @@ function TVSeriesPageContent() {
           </div>
         </motion.header>
 
-        <Stats analytics={analytics} type="tv" />
+        <Stats analytics={analytics} type="tv" loading={loading} />
 
         <motion.div className="mb-6 sm:mb-8 p-1 glass rounded-xl">
           <div className="flex gap-2">
