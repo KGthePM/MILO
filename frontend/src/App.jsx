@@ -11,6 +11,7 @@ import AuthGate from './components/AuthGate';
 import ResetPasswordPage from './pages/ResetPasswordPage';
 import MiloAssistantFab from './components/shared/MiloAssistantFab';
 import AppLockGate from './components/shared/AppLockGate';
+import ScrollToTop from './components/shared/ScrollToTop';
 import { MovieProvider } from './utils/MovieContext';
 import { TVSeriesProvider } from './utils/TVSeriesContext';
 import { PodcastProvider } from './utils/PodcastContext';
@@ -20,6 +21,7 @@ import { IS_NATIVE } from './utils/native';
 function App() {
   return (
     <BrowserRouter>
+      <ScrollToTop />
       <Routes>
         {/* Public marketing page — rendered outside the auth gate.
             Web only: inside the Capacitor app the route redirects to /, so
