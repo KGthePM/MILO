@@ -1,6 +1,5 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import MoviesPage from './pages/MoviesPage';
-import DashboardPage from './pages/DashboardPage';
 import TVSeriesPage from './pages/TVSeriesPage';
 import PodcastsPage from './pages/PodcastsPage';
 import TimelinePage from './pages/TimelinePage';
@@ -51,7 +50,6 @@ function GatedApp() {
           <PodcastProvider>
             <Routes>
               <Route path="/" element={<MoviesPage />} />
-              <Route path="/dashboard" element={<DashboardPage />} />
               <Route path="/movies" element={<MoviesPage />} />
               <Route path="/tv" element={<TVSeriesPage />} />
               <Route path="/podcasts" element={<PodcastsPage />} />

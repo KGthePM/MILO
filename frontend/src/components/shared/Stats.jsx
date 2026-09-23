@@ -48,9 +48,7 @@ function useCountUp(value, { decimals = 0, duration = 700 } = {}) {
   return decimals > 0 ? display.toFixed(decimals) : Math.round(display);
 }
 
-// Exported so the combined Dashboard page can build matching hero cards
-// without re-inventing this markup.
-export function StatCard({ accent, icon: Icon, label, value, decimals, caption, delay }) {
+function StatCard({ accent, icon: Icon, label, value, decimals, caption, delay }) {
   const display = useCountUp(value, { decimals });
   return (
     <motion.div
