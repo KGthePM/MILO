@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { motion } from 'framer-motion';
+import { createPortal } from 'react-dom';
 import { Plus, X, Globe, Lock } from 'lucide-react';
 import { useTVSeries } from '../../utils/TVSeriesContext';
 import { IS_CLOUD } from '../../utils/mode';
@@ -87,7 +88,7 @@ export default function AddTVSeriesModal({ isOpen, onClose, defaultStatus = 'wat
     }
   };
 
-  return (
+  return createPortal(
     <motion.div
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
@@ -298,6 +299,7 @@ export default function AddTVSeriesModal({ isOpen, onClose, defaultStatus = 'wat
           </button>
         </form>
       </motion.div>
-    </motion.div>
+    </motion.div>,
+    document.body
   );
 }

@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { motion } from 'framer-motion';
+import { createPortal } from 'react-dom';
 import { Plus, X, Globe, Lock } from 'lucide-react';
 import { useMovies } from '../../utils/MovieContext';
 import { IS_CLOUD } from '../../utils/mode';
@@ -84,7 +85,7 @@ export default function AddMovieModal({ isOpen, onClose, defaultStatus = 'watche
     }
   };
 
-  return (
+  return createPortal(
     <motion.div
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
@@ -281,6 +282,7 @@ export default function AddMovieModal({ isOpen, onClose, defaultStatus = 'watche
           </button>
         </form>
       </motion.div>
-    </motion.div>
+    </motion.div>,
+    document.body
   );
 }

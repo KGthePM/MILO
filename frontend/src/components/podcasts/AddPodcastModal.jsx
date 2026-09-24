@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { motion } from 'framer-motion';
+import { createPortal } from 'react-dom';
 import { X, Globe, Lock } from 'lucide-react';
 import { usePodcasts } from '../../utils/PodcastContext';
 import { IS_CLOUD } from '../../utils/mode';
@@ -89,7 +90,7 @@ export default function AddPodcastModal({ isOpen, onClose, defaultStatus = 'watc
 
   const statusLabel = (s) => (s === 'watched' ? PODCAST.verb : PODCAST.verbTo);
 
-  return (
+  return createPortal(
     <motion.div
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
@@ -303,6 +304,7 @@ export default function AddPodcastModal({ isOpen, onClose, defaultStatus = 'watc
           </button>
         </form>
       </motion.div>
-    </motion.div>
+    </motion.div>,
+    document.body
   );
 }
