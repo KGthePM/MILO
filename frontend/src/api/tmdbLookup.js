@@ -70,10 +70,14 @@ function toResult(r, kind) {
   };
 }
 
-async function search(kind, term, { signal, limit = 8 } = {}) {
+// Optional `year` narrows the search to that release / first-air year — used by
+// the recommendations poster lookup to pick the right one of several same-named titles.
+async function search(kind, term, { signal, limit = 8, year } = {}) {
   const q = (term || '').trim();
   if (!q || !TMDB_ENABLED) return [];
-  const data = await tmdbGet(`/search/${kind}`, { query: q, include_adult: 'false' }, signal);
+  const params = { query: q, include_adult: 'false' };
+  if (year) params[kind === 'tv' ? 'first_air_date_year' : 'primary_release_year'] = String(year);
+  const data = await tmdbGet(`/search/${kind}`, params, signal);
   return (data.results || [])
     .slice(0, limit)
     .map((r) => toResult(r, kind))

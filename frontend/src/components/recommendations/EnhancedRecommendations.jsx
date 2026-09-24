@@ -1,6 +1,6 @@
 import { motion, AnimatePresence } from 'framer-motion';
 import { Sparkles, RefreshCw, Filter, Loader2, AlertCircle, Play, Settings as SettingsIcon, Brain, ThumbsUp, ThumbsDown, EyeOff, HelpCircle } from 'lucide-react';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { api as movieApi } from '../../api/movieApi';
 import { tvApi } from '../../api/tvApi';
 import { api as tasteApi } from '../../api/tasteApi';
@@ -14,6 +14,8 @@ import { loadAISettings, getActiveKey } from '../../utils/aiSettings';
 import { PRESETS } from '../../recommendations/presets';
 import { getContentType, accentFor } from '../../utils/contentTypes';
 import { podcastApi } from '../../api/podcastApi';
+import { lookupRecArtwork } from '../../api/artworkLookup';
+import CoverArt from '../shared/CoverArt';
 import AddMovieModal from '../movies/AddMovieModal';
 import AddTVSeriesModal from '../tv/AddTVSeriesModal';
 import AddPodcastModal from '../podcasts/AddPodcastModal';
@@ -89,6 +91,12 @@ export default function EnhancedRecommendations({ contentType = 'movie' }) {
   const [feedbackBusy, setFeedbackBusy] = useState(null);
   // A rec the user marked "Seen it" — opens a prefilled Add modal to log it as watched.
   const [seenItRec, setSeenItRec] = useState(null);
+  // Posters / cover art found for the current recs, keyed like feedbackMap.
+  // Filled in after the cards render; a rec with no match keeps CoverArt's tile.
+  const [artByKey, setArtByKey] = useState({});
+  // Bumped per fetch (and on unmount) so late lookups from an older run are dropped.
+  const artRunRef = useRef(0);
+  useEffect(() => () => { artRunRef.current += 1; }, []);
   const { fetchMovies, deleteMovie } = useMovies();
   const { fetchSeries, deleteSeries } = useTVSeries();
   const { fetchPodcasts, deletePodcast } = usePodcasts();
@@ -151,7 +159,9 @@ export default function EnhancedRecommendations({ contentType = 'movie' }) {
       if (effectiveModel) params.model = effectiveModel;
       const response = await api.getRecommendations(params);
       setGeneratedPresetLabel(activePreset ? (PRESETS.find((p) => p.id === activePreset)?.label || null) : null);
-      setRecommendations(response.recommendations || []);
+      const recs = response.recommendations || [];
+      setRecommendations(recs);
+      loadArtwork(recs);
       setSource(response.source || 'simple');
       setMessage(response.message || '');
       setAiErrorMessage(response.aiErrorMessage || null);
@@ -163,6 +173,17 @@ export default function EnhancedRecommendations({ contentType = 'movie' }) {
       setAiErrorMessage(error.message || 'Request failed');
     } finally {
       if (refresh) setRefreshing(false); else setLoading(false);
+    }
+  };
+
+  const loadArtwork = (recs) => {
+    const run = ++artRunRef.current;
+    setArtByKey({});
+    for (const rec of recs) {
+      lookupRecArtwork(rec, rec.contentType || contentType).then((art) => {
+        if (!art || artRunRef.current !== run) return;
+        setArtByKey((m) => ({ ...m, [feedbackKeyFor(rec)]: art }));
+      });
     }
   };
 
@@ -251,6 +272,7 @@ export default function EnhancedRecommendations({ contentType = 'movie' }) {
             title: rec.title,
             genre: rec.genre || null,
             release_year: rec.year ? Number(rec.year) || null : null,
+            artwork_url: artByKey[key]?.artwork_url || null,
             status: 'to_watch',
           };
           const created = await ADD_BY_TYPE[ct](payload);
@@ -600,6 +622,8 @@ export default function EnhancedRecommendations({ contentType = 'movie' }) {
                   const fbKey = feedbackKeyFor(rec);
                   const fbActive = feedbackMap[fbKey]?.feedback;
                   const fbBusy = feedbackBusy === fbKey;
+                  const art = artByKey[fbKey];
+                  const year = rec.year || art?.year;
                   const fbBtnBase = 'flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-xs transition-all disabled:opacity-50 disabled:cursor-not-allowed';
                   const fbBtnIdle = 'bg-black/20 border-white/10 text-white/60 hover:border-white/30 hover:text-white';
                   return (
@@ -610,30 +634,33 @@ export default function EnhancedRecommendations({ contentType = 'movie' }) {
                     transition={{ delay: index * 0.05 }}
                     className={`bg-black/20 rounded-lg p-4 border border-white/10 hover:border-white/20 transition-all ${fbActive === 'not_for_me' ? 'opacity-60' : ''}`}
                   >
-                    <div className="flex items-start justify-between mb-2">
-                      <div>
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <h3 className="font-semibold text-white">{rec.title}</h3>
-                          {rec.wildcard && (
-                            <span
-                              className="text-xs px-2 py-0.5 rounded-full bg-purple-500/20 border border-purple-500/40 text-purple-300"
-                              title="A deliberate stretch pick — one step outside your usual taste"
-                            >
-                              🎲 Wildcard
-                            </span>
-                          )}
-                        </div>
-                        <div className="flex items-center gap-2 mt-1">
-                          {rec.year && <span className="text-white/50 text-sm">{rec.year}</span>}
-                          {rec.genre && (
-                            <>
-                              <span className="text-white/30">•</span>
-                              <span className={`${A.text} text-sm`}>{rec.genre}</span>
-                            </>
-                          )}
+                    <div className="flex items-start justify-between gap-3 mb-2">
+                      <div className="flex items-start gap-3 min-w-0">
+                        <CoverArt contentType={rec.contentType || contentType} src={art?.artwork_url} title={rec.title} />
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <h3 className="font-semibold text-white">{rec.title}</h3>
+                            {rec.wildcard && (
+                              <span
+                                className="text-xs px-2 py-0.5 rounded-full bg-purple-500/20 border border-purple-500/40 text-purple-300"
+                                title="A deliberate stretch pick — one step outside your usual taste"
+                              >
+                                🎲 Wildcard
+                              </span>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-2 mt-1">
+                            {year && <span className="text-white/50 text-sm">{year}</span>}
+                            {rec.genre && (
+                              <>
+                                {year && <span className="text-white/30">•</span>}
+                                <span className={`${A.text} text-sm`}>{rec.genre}</span>
+                              </>
+                            )}
+                          </div>
                         </div>
                       </div>
-                      <div className="flex items-center gap-1">
+                      <div className="flex items-center gap-1 shrink-0">
                         <div className="w-16 h-2 bg-white/10 rounded-full overflow-hidden">
                           <motion.div
                             initial={{ width: 0 }}
@@ -697,7 +724,8 @@ export default function EnhancedRecommendations({ contentType = 'movie' }) {
             prefill={{
               title: seenItRec.title,
               genre: seenItRec.genre || '',
-              release_year: seenItRec.year ? String(seenItRec.year) : '',
+              release_year: seenItRec.year ? String(seenItRec.year) : (artByKey[feedbackKeyFor(seenItRec)]?.year || ''),
+              artwork_url: artByKey[feedbackKeyFor(seenItRec)]?.artwork_url || '',
               status: 'watched',
             }}
           />
