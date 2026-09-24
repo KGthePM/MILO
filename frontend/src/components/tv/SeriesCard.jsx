@@ -5,6 +5,7 @@ import { useState, useEffect } from 'react';
 import { getEffectiveGenreColors, subscribeUserPrefs } from '../../utils/userPrefs';
 import { getGenreGlowStyle } from '../../utils/genreColors';
 import { getRatingColor } from '../../utils/ratingColors';
+import CoverArt from '../shared/CoverArt';
 
 export default function SeriesCard({ series, onEdit, onMarkWatched }) {
   const isToWatch = series.status === 'to_watch';
@@ -36,10 +37,18 @@ export default function SeriesCard({ series, onEdit, onMarkWatched }) {
       style={glowStyle}
       className="glass rounded-xl p-4 sm:p-5 border transition-all duration-300"
     >
-      <div className="flex justify-between items-start mb-3">
-        <div className="flex items-center gap-2 flex-1">
-          <Tv size={18} className="text-neon-magenta flex-shrink-0" />
-          <h3 className="text-lg sm:text-xl font-bold text-white line-clamp-2">{series.title}</h3>
+      <div className="flex justify-between items-start mb-3 gap-3">
+        <div className="flex items-start gap-3 flex-1 min-w-0">
+          <CoverArt contentType="tv" src={series.artwork_url} title={series.title} />
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-2">
+              <Tv size={16} className="text-neon-magenta flex-shrink-0" />
+              <h3 className="text-lg sm:text-xl font-bold text-white line-clamp-2">{series.title}</h3>
+            </div>
+            {series.release_year && (
+              <p className="text-white/70 text-sm mt-1">{series.release_year}</p>
+            )}
+          </div>
         </div>
         <div className="flex gap-1 sm:gap-2 flex-shrink-0">
           {isToWatch && onMarkWatched && (
@@ -89,13 +98,6 @@ export default function SeriesCard({ series, onEdit, onMarkWatched }) {
           </span>
         )}
       </div>
-
-      {series.release_year && (
-        <div className="flex items-center gap-2 text-white/70 text-sm mb-2">
-          <span className="font-medium">Released:</span>
-          <span>{series.release_year}</span>
-        </div>
-      )}
 
       {(series.num_seasons || series.total_episodes) && (
         <div className="flex gap-4 mb-2 text-white/70 text-sm">

@@ -6,33 +6,9 @@ import { getEffectiveGenreColors, subscribeUserPrefs } from '../../utils/userPre
 import { getGenreGlowStyle } from '../../utils/genreColors';
 import { getRatingColor } from '../../utils/ratingColors';
 import { CONTENT_TYPES } from '../../utils/contentTypes';
+import CoverArt from '../shared/CoverArt';
 
 const PODCAST = CONTENT_TYPES.podcast;
-
-// Square cover art is the one thing podcasts have that movies/TV don't in MILO.
-// Falls back to a mic tile so an artwork-less row still reads as a card, and
-// hides itself if the image 404s rather than showing a broken-image glyph.
-function Artwork({ src, title }) {
-  const [failed, setFailed] = useState(false);
-
-  if (!src || failed) {
-    return (
-      <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-lg bg-neon-purple/10 border border-neon-purple/30 flex items-center justify-center flex-shrink-0">
-        <Mic size={24} className="text-neon-purple/70" />
-      </div>
-    );
-  }
-
-  return (
-    <img
-      src={src}
-      alt={`${title} cover art`}
-      loading="lazy"
-      onError={() => setFailed(true)}
-      className="w-16 h-16 sm:w-20 sm:h-20 rounded-lg object-cover flex-shrink-0 border border-white/10"
-    />
-  );
-}
 
 export default function PodcastCard({ podcast, onEdit, onMarkListened }) {
   const isToListen = podcast.status === 'to_watch';
@@ -69,7 +45,7 @@ export default function PodcastCard({ podcast, onEdit, onMarkListened }) {
     >
       <div className="flex justify-between items-start mb-3 gap-3">
         <div className="flex items-start gap-3 flex-1 min-w-0">
-          <Artwork src={podcast.artwork_url} title={podcast.title} />
+          <CoverArt contentType="podcast" src={podcast.artwork_url} title={podcast.title} />
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2">
               <Mic size={16} className="text-neon-purple flex-shrink-0" />

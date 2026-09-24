@@ -1,4 +1,5 @@
 import { accentFor } from '../../utils/contentTypes';
+import { COVER_SIZE, coverShapeFor } from './CoverArt';
 
 // Loading placeholder for the card grids. Replaces a spinning ring, which
 // tells you the app is busy but nothing about what is coming; a skeleton in the
@@ -15,12 +16,12 @@ function Bar({ w, h = 'h-3', className = '' }) {
   return <div className={`${w} ${h} rounded bg-white/[0.07] ${className}`} />;
 }
 
-function SkeletonCard({ ring, withThumb, delay }) {
+function SkeletonCard({ ring, thumbSize, delay }) {
   return (
     <div className={`skeleton-sweep glass relative overflow-hidden rounded-xl border ${ring} p-4 sm:p-5`}
          style={{ animationDelay: `${delay}ms` }}>
       <div className="flex items-start gap-3">
-        {withThumb && <div className="h-16 w-16 flex-shrink-0 rounded-lg bg-white/[0.07] sm:h-20 sm:w-20" />}
+        <div className={`${thumbSize} flex-shrink-0 rounded-lg bg-white/[0.07]`} />
         <div className="min-w-0 flex-1">
           <Bar w="w-3/4" h="h-4" />
           <Bar w="w-1/2" className="mt-2.5" />
@@ -44,13 +45,13 @@ function SkeletonCard({ ring, withThumb, delay }) {
  */
 export default function SkeletonGrid({ contentType = 'movie', count = 6 }) {
   const a = accentFor(contentType);
-  // Podcast cards lead with artwork; the others are text-only.
-  const withThumb = contentType === 'podcast';
+  // Every card leads with artwork: square for podcasts, a poster for movies/TV.
+  const thumbSize = COVER_SIZE[coverShapeFor(contentType)];
   return (
     <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3" aria-busy="true" aria-live="polite">
       <span className="sr-only">Loading…</span>
       {Array.from({ length: count }, (_, i) => (
-        <SkeletonCard key={i} ring={a.ringSoft} withThumb={withThumb} delay={i * 90} />
+        <SkeletonCard key={i} ring={a.ringSoft} thumbSize={thumbSize} delay={i * 90} />
       ))}
     </div>
   );

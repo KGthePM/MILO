@@ -84,6 +84,7 @@ export const ACCENT = {
     rowHover: 'hover:bg-neon-cyan/15',
     tileSoft: 'bg-neon-cyan/10',
     iconSoft: 'text-neon-cyan/70',
+    edgeSoft: 'border-neon-cyan/30',
   },
   magenta: {
     text: 'text-neon-magenta',
@@ -107,6 +108,7 @@ export const ACCENT = {
     rowHover: 'hover:bg-neon-magenta/15',
     tileSoft: 'bg-neon-magenta/10',
     iconSoft: 'text-neon-magenta/70',
+    edgeSoft: 'border-neon-magenta/30',
   },
   purple: {
     text: 'text-neon-purple',
@@ -130,6 +132,7 @@ export const ACCENT = {
     rowHover: 'hover:bg-neon-purple/15',
     tileSoft: 'bg-neon-purple/10',
     iconSoft: 'text-neon-purple/70',
+    edgeSoft: 'border-neon-purple/30',
   },
 };
 

@@ -5,6 +5,7 @@ import { useState, useEffect } from 'react';
 import { getEffectiveGenreColors, subscribeUserPrefs } from '../../utils/userPrefs';
 import { getGenreGlowStyle } from '../../utils/genreColors';
 import { getRatingColor } from '../../utils/ratingColors';
+import CoverArt from '../shared/CoverArt';
 
 export default function MovieCard({ movie, onEdit, onMarkWatched }) {
   const isToWatch = movie.status === 'to_watch';
@@ -36,9 +37,19 @@ export default function MovieCard({ movie, onEdit, onMarkWatched }) {
       style={glowStyle}
       className="glass rounded-xl p-4 sm:p-5 border transition-all duration-300"
     >
-      <div className="flex justify-between items-start mb-3">
-        <h3 className="text-lg sm:text-xl font-bold text-white pr-2 line-clamp-2">{movie.title}</h3>
-        <div className="flex gap-1 sm:gap-2">
+      <div className="flex justify-between items-start mb-3 gap-3">
+        <div className="flex items-start gap-3 flex-1 min-w-0">
+          <CoverArt contentType="movie" src={movie.artwork_url} title={movie.title} />
+          <div className="min-w-0 flex-1">
+            <h3 className="text-lg sm:text-xl font-bold text-white line-clamp-2">{movie.title}</h3>
+            {(movie.release_year || movie.director) && (
+              <p className="text-white/70 text-sm mt-1 line-clamp-2">
+                {[movie.release_year, movie.director].filter(Boolean).join(' · ')}
+              </p>
+            )}
+          </div>
+        </div>
+        <div className="flex gap-1 sm:gap-2 flex-shrink-0">
           {isToWatch && onMarkWatched && (
             <button
               onClick={() => onMarkWatched(movie)}
@@ -65,20 +76,6 @@ export default function MovieCard({ movie, onEdit, onMarkWatched }) {
           </button>
         </div>
       </div>
-
-      {movie.director && (
-        <div className="flex items-center gap-2 text-white/70 text-sm mb-2">
-          <span className="font-medium">Director:</span>
-          <span>{movie.director}</span>
-        </div>
-      )}
-
-      {movie.release_year && (
-        <div className="flex items-center gap-2 text-white/70 text-sm mb-2">
-          <span className="font-medium">Released:</span>
-          <span>{movie.release_year}</span>
-        </div>
-      )}
 
       <div className="flex items-center gap-2 mb-2 flex-wrap">
         {isToWatch ? (
