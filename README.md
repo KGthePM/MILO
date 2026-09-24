@@ -292,6 +292,13 @@ The easiest way to get started (handles everything automatically):
 start.bat
 ```
 
+**To Update iOS before Archive**
+'''cd frontend
+     npm run build
+     npx cap sync ios
+     npx cap open ios
+'''
+
 Then open your browser to: `http://localhost:5173`
 
 ## 🎯 Tips

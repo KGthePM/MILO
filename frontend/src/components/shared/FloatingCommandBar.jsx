@@ -19,13 +19,13 @@ const ICON_BTN_ACCENT = {
 const NAV_ICONS = { movie: Film, tv: Tv, podcast: Mic };
 
 function Divider() {
-  return <div className="w-px h-8 bg-white/10 mx-0.5 sm:mx-1 shrink-0" />;
+  return <div className="w-px h-8 bg-white/10 mx-0.5 lg:mx-1 shrink-0" />;
 }
 
 function IconBtn({ onClick, title, children, accent = 'white', as = 'button', to, motionProps }) {
   const accentClass = ICON_BTN_ACCENT[accent] || ICON_BTN_ACCENT.white;
 
-  const base = `flex items-center justify-center w-10 h-10 sm:w-11 sm:h-11 rounded-xl transition-all shrink-0 ${accentClass}`;
+  const base = `flex items-center justify-center w-10 h-10 lg:w-11 lg:h-11 rounded-xl transition-all shrink-0 ${accentClass}`;
 
   if (as === 'link') {
     return (
@@ -88,11 +88,15 @@ export default function FloatingCommandBar({ page, onAdd, onRefresh }) {
       initial={{ opacity: 0, y: 40 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.4, ease: 'easeOut' }}
-      style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
-      className="fixed bottom-2 left-2 right-2 sm:bottom-4 sm:left-1/2 sm:right-auto sm:-translate-x-1/2 z-40"
+      style={{
+        paddingBottom: 'env(safe-area-inset-bottom)',
+        left: 'calc(0.5rem + env(safe-area-inset-left))',
+        right: 'calc(0.5rem + env(safe-area-inset-right))',
+      }}
+      className="fixed bottom-2 lg:bottom-4 z-40 w-full flex justify-center pointer-events-none"
     >
       <div
-        className={`glass rounded-2xl px-1.5 py-1.5 sm:px-2 sm:py-2 flex items-center justify-between sm:justify-start gap-0.5 sm:gap-1 shadow-2xl ${A.border}`}
+        className={`glass rounded-2xl px-1.5 py-1.5 lg:px-2 lg:py-2 flex items-center justify-between lg:justify-start gap-0.5 lg:gap-1 shadow-2xl w-full lg:w-auto pointer-events-auto ${A.border}`}
       >
         {/* Page toggle — one entry per content type */}
         {Object.values(CONTENT_TYPES).map((ct) => {
@@ -104,28 +108,28 @@ export default function FloatingCommandBar({ page, onAdd, onRefresh }) {
               key={ct.key}
               to={ct.path}
               title={ct.nav}
-              className={`flex items-center gap-2 px-2.5 sm:px-4 h-11 rounded-xl font-medium text-sm transition-all shrink-0 ${
+              className={`flex items-center gap-2 px-2.5 lg:px-4 h-11 rounded-xl font-medium text-sm transition-all shrink-0 ${
                 active
                   ? `${ctAccent.bgSoft} ${ctAccent.text} ${ctAccent.border}`
                   : 'text-white/60 hover:text-white hover:bg-white/5'
               }`}
             >
               <Icon size={18} />
-              <span className="hidden sm:inline">{ct.nav}</span>
+              <span className="hidden lg:inline">{ct.nav}</span>
             </Link>
           );
         })}
         <Link
           to="/timeline"
           title="Timeline"
-          className={`flex items-center gap-2 px-2.5 sm:px-4 h-11 rounded-xl font-medium text-sm transition-all shrink-0 ${
+          className={`flex items-center gap-2 px-2.5 lg:px-4 h-11 rounded-xl font-medium text-sm transition-all shrink-0 ${
             onTimelinePath
               ? `bg-white/15 text-white ${A.border}`
               : 'text-white/60 hover:text-white hover:bg-white/5'
           }`}
         >
           <Clock size={18} />
-          <span className="hidden sm:inline">Timeline</span>
+          <span className="hidden lg:inline">Timeline</span>
         </Link>
 
         <Divider />
@@ -137,10 +141,10 @@ export default function FloatingCommandBar({ page, onAdd, onRefresh }) {
             title={`Add ${activeType.singular}`}
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
-            className={`flex items-center gap-2 h-11 px-3 sm:px-4 rounded-xl font-semibold text-sm transition-all pulse-glow shrink-0 border ${A.bgSoft} ${A.ring} ${A.text} ${A.glow} ${A.bgHover}`}
+            className={`flex items-center gap-2 h-11 px-3 lg:px-4 rounded-xl font-semibold text-sm transition-all pulse-glow shrink-0 border ${A.bgSoft} ${A.ring} ${A.text} ${A.glow} ${A.bgHover}`}
           >
             <Plus size={20} />
-            <span className="hidden sm:inline">Add</span>
+            <span className="hidden lg:inline">Add</span>
           </motion.button>
         )}
 
@@ -170,10 +174,12 @@ export default function FloatingCommandBar({ page, onAdd, onRefresh }) {
         </IconBtn>
 
         {/* Auth (cloud only) — at far end, separated to avoid accidental taps.
-            Hidden below sm: the bar's ~390px of shrink-0 content overflows
-            ≤390pt screens; sign-out remains available in Settings. */}
+            Hidden below lg: the bar's ~900-950px of shrink-0 content (all labels,
+            Friends/Settings, Sign-out) would overflow on every current iPhone in
+            landscape (<956px); lg: (1024px) ensures the full layout only appears on
+            tablets/desktops where it fits. Sign-out remains available in Settings. */}
         {IS_CLOUD && (
-          <div className="hidden sm:flex items-center">
+          <div className="hidden lg:flex items-center">
             <Divider />
             {session ? (
               <motion.button
@@ -181,10 +187,10 @@ export default function FloatingCommandBar({ page, onAdd, onRefresh }) {
                 title="Sign out"
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
-                className="flex items-center gap-2 h-11 px-2.5 sm:px-3 rounded-xl font-medium text-sm transition-all shrink-0 text-red-400 hover:text-white hover:bg-red-500/20"
+                className="flex items-center gap-2 h-11 px-2.5 lg:px-3 rounded-xl font-medium text-sm transition-all shrink-0 text-red-400 hover:text-white hover:bg-red-500/20"
               >
                 <LogOut size={20} />
-                <span className="hidden sm:inline">Sign out</span>
+                <span className="hidden lg:inline">Sign out</span>
               </motion.button>
             ) : (
               <IconBtn as="link" to="/landing" title="Sign in" accent="cyan">
