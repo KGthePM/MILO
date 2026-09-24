@@ -3,6 +3,8 @@ import { motion } from 'framer-motion';
 import { X, Globe, Lock } from 'lucide-react';
 import { useTVSeries } from '../../utils/TVSeriesContext';
 import { IS_CLOUD } from '../../utils/mode';
+import TVSeriesSearch from './TVSeriesSearch';
+import { TMDB_ENABLED } from '../../api/tmdbLookup';
 
 const genres = ['Action', 'Comedy', 'Drama', 'Sci-Fi', 'Horror', 'Thriller', 'Romance', 'Animation', 'Documentary', 'Fantasy'];
 
@@ -19,6 +21,7 @@ export default function EditTVSeriesModal({ isOpen, onClose, series }) {
     release_year: series?.release_year || '',
     is_public: series?.is_public !== false,
     status: series?.status || 'watched',
+    artwork_url: series?.artwork_url || '',
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -35,6 +38,7 @@ export default function EditTVSeriesModal({ isOpen, onClose, series }) {
         release_year: series.release_year || '',
         is_public: series.is_public !== false,
         status: series.status || 'watched',
+        artwork_url: series.artwork_url || '',
       });
     }
   }, [series]);
@@ -42,6 +46,21 @@ export default function EditTVSeriesModal({ isOpen, onClose, series }) {
   if (!isOpen || !series) return null;
 
   const isToWatch = formData.status === 'to_watch';
+
+  // Picking a TMDB result overwrites the title and fills the database-sourced
+  // fields it actually returned; anything it lacked keeps the user's value.
+  // Rating, notes, status, and date are never touched.
+  const applyLookup = (d) => {
+    setFormData((prev) => ({
+      ...prev,
+      title: d.title || prev.title,
+      release_year: d.release_year ? String(d.release_year) : prev.release_year,
+      num_seasons: d.num_seasons != null ? String(d.num_seasons) : prev.num_seasons,
+      total_episodes: d.total_episodes != null ? String(d.total_episodes) : prev.total_episodes,
+      genre: d.genre || prev.genre,
+      artwork_url: d.artwork_url || prev.artwork_url,
+    }));
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -88,6 +107,8 @@ export default function EditTVSeriesModal({ isOpen, onClose, series }) {
           </button>
         </div>
 
+        {TMDB_ENABLED && <TVSeriesSearch onPick={applyLookup} initialTerm={series.title} />}
+
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label className="block text-sm font-medium mb-2 text-white/80">Status</label>
@@ -103,14 +124,23 @@ export default function EditTVSeriesModal({ isOpen, onClose, series }) {
 
           <div>
             <label className="block text-sm font-medium mb-2 text-white/80">Series Name *</label>
-            <input
-              type="text"
-              required
-              value={formData.title}
-              onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-              className="w-full px-4 py-3 rounded-lg glass"
-              placeholder="Enter series name"
-            />
+            <div className="flex gap-3 items-start">
+              {formData.artwork_url && (
+                <img
+                  src={formData.artwork_url}
+                  alt=""
+                  className="w-8 h-12 rounded-md object-cover flex-shrink-0 border border-white/10"
+                />
+              )}
+              <input
+                type="text"
+                required
+                value={formData.title}
+                onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+                className="w-full px-4 py-3 rounded-lg glass"
+                placeholder="Enter series name"
+              />
+            </div>
           </div>
 
           <div className="grid grid-cols-2 gap-4">

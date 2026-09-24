@@ -8,6 +8,8 @@ import { getSupabase } from '../../utils/supabase';
 import { api as movieApi } from '../../api/movieApi';
 import { tvApi } from '../../api/tvApi';
 import { podcastApi } from '../../api/podcastApi';
+import { TMDB_ENABLED } from '../../api/tmdbLookup';
+import tmdbLogo from '../../assets/tmdb-logo.svg';
 
 // Base columns shared by every export; each content type appends its own.
 const BASE_EXPORT_COLUMNS = ['title', 'rating', 'genre', 'date_watched', 'notes', 'status'];
@@ -249,6 +251,19 @@ export default function DataSection({ session, onSignOut }) {
               </div>
             </div>
           )}
+        </section>
+      )}
+
+      {/* Required by TMDB's API terms whenever the movie/TV lookup is enabled. */}
+      {TMDB_ENABLED && (
+        <section>
+          <h3 className="text-white font-semibold mb-2">Credits</h3>
+          <div className="flex items-center gap-4 p-4 rounded-lg glass border border-white/10">
+            <img src={tmdbLogo} alt="TMDB" className="h-4 w-auto shrink-0" />
+            <p className="text-white/50 text-xs">
+              This product uses the TMDB API but is not endorsed or certified by TMDB.
+            </p>
+          </div>
         </section>
       )}
 

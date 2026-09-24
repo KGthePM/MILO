@@ -81,6 +81,9 @@ export const ACCENT = {
     chipActive: 'bg-neon-cyan/25 border-neon-cyan/60',
     fbActive: 'bg-neon-cyan/20 border-neon-cyan/40',
     barGrad: 'from-neon-cyan to-neon-purple',
+    rowHover: 'hover:bg-neon-cyan/15',
+    tileSoft: 'bg-neon-cyan/10',
+    iconSoft: 'text-neon-cyan/70',
   },
   magenta: {
     text: 'text-neon-magenta',
@@ -101,6 +104,9 @@ export const ACCENT = {
     chipActive: 'bg-neon-magenta/25 border-neon-magenta/60',
     fbActive: 'bg-neon-magenta/20 border-neon-magenta/40',
     barGrad: 'from-neon-magenta to-neon-purple',
+    rowHover: 'hover:bg-neon-magenta/15',
+    tileSoft: 'bg-neon-magenta/10',
+    iconSoft: 'text-neon-magenta/70',
   },
   purple: {
     text: 'text-neon-purple',
@@ -121,6 +127,9 @@ export const ACCENT = {
     chipActive: 'bg-neon-purple/25 border-neon-purple/60',
     fbActive: 'bg-neon-purple/20 border-neon-purple/40',
     barGrad: 'from-neon-purple to-neon-cyan',
+    rowHover: 'hover:bg-neon-purple/15',
+    tileSoft: 'bg-neon-purple/10',
+    iconSoft: 'text-neon-purple/70',
   },
 };
 

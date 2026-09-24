@@ -127,6 +127,8 @@ Frontend state: `MovieContext.jsx`, `TVSeriesContext.jsx`, `PodcastContext.jsx`,
 
 **Podcast metadata**: `frontend/src/api/podcastLookup.js` queries the iTunes Search API (`https://itunes.apple.com/search?media=podcast=…`) **directly from the browser** — CORS is confirmed (`access-control-allow-origin: *`), no proxy needed. Used for artwork + autofill in the Add modal; the feature degrades to plain manual entry on any failure. `release_year` is deliberately not autofilled (iTunes `releaseDate` is the latest-episode date, not the show's debut).
 
+**Movie/TV lookup**: `frontend/src/api/tmdbLookup.js` queries TMDB directly from the browser (CORS-friendly; TMDB permits client-side keys) using `VITE_TMDB_TOKEN` (the v4 API Read Access Token). When the token is unset, `TMDB_ENABLED` is false and the Find box is not rendered. Picking a result fetches details (movies: director, genre, poster; TV: seasons, episodes, genre, poster) via `getMovieDetails` / `getTVDetails`, which never throw and fall back to title + year. TMDB genres are mapped onto MILO's fixed movie/TV genre list, and anything unmappable leaves the user's choice alone. Posters are saved to `artwork_url`. The UI for all three lookups is `components/shared/TitleSearch.jsx`, wrapped by `PodcastSearch`, `movies/MovieSearch`, and `tv/TVSeriesSearch`. TMDB's terms require attribution (the Credits block in `settings/DataSection.jsx`) and cover non-commercial use only; MILO is free, so this is fine.
+
 **Genres**: `frontend/src/utils/genreColors.js` splits `SCREEN_GENRE_COLORS` (film/TV) from `PODCAST_GENRE_COLORS` (iTunes `primaryGenreName` strings); `GenreFilter` takes a `genres` prop so each section filters its own list. Unknown genres fall back gracefully. Users can override colors per genre via `utils/userPrefs.js` (`milo.userPrefs.v1` in `localStorage`, with a subscribe/notify hook).
 
 ## Import / Migration
@@ -153,6 +155,7 @@ Frontend state: `MovieContext.jsx`, `TVSeriesContext.jsx`, `PodcastContext.jsx`,
 | Supabase URL (cloud only) | _none_ | `VITE_SUPABASE_URL` env var |
 | Supabase anon key (cloud only) | _none_ | `VITE_SUPABASE_ANON_KEY` env var |
 | z.ai proxy URL | relative on web, deployed URL on iOS | `VITE_ZAI_PROXY_URL` env var |
+| TMDB token (movie/TV lookup) | _none — lookup hidden_ | `VITE_TMDB_TOKEN` env var |
 
 ## No Verification Commands
 

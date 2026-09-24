@@ -1,6 +1,7 @@
 // Podcast metadata lookup via the iTunes Search API.
 //
-// MILO's only external metadata source. No API key, no auth, and it sends
+// Podcast half of MILO's external metadata lookup (movies/TV use TMDB, see
+// tmdbLookup.js). No API key, no auth, and it sends
 // `Access-Control-Allow-Origin: *`, so it is called directly from the browser
 // in both local and cloud mode — no proxy or backend route involved.
 //

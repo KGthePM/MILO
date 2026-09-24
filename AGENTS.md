@@ -145,6 +145,8 @@ Frontend state: `MovieContext.jsx`, `TVSeriesContext.jsx`, `PodcastContext.jsx`,
 
 **Podcast lookup**: `frontend/src/api/podcastLookup.js` hits the iTunes Search API directly from the browser (CORS confirmed, `access-control-allow-origin: *`) for artwork + autofill; degrades to manual entry on failure. `release_year` is deliberately **not** autofilled — the iTunes `releaseDate` is the latest-episode date, not the show's debut.
 
+**Movie/TV lookup**: `frontend/src/api/tmdbLookup.js` queries TMDB directly from the browser (CORS-friendly; TMDB permits client-side keys) using `VITE_TMDB_TOKEN` (the v4 API Read Access Token). When the token is unset, `TMDB_ENABLED` is false and the Find box is not rendered. Picking a result fetches details (movies: director, genre, poster; TV: seasons, episodes, genre, poster) via `getMovieDetails` / `getTVDetails`, which never throw and fall back to title + year. TMDB genres are mapped onto MILO's fixed movie/TV genre list, and anything unmappable leaves the user's choice alone. Posters are saved to `artwork_url`. The UI for all three lookups is `components/shared/TitleSearch.jsx`, wrapped by `PodcastSearch`, `movies/MovieSearch`, and `tv/TVSeriesSearch`. TMDB's terms require attribution (the Credits block in `settings/DataSection.jsx`) and cover non-commercial use only; MILO is free, so this is fine.
+
 **Genres**: `frontend/src/utils/genreColors.js` splits `SCREEN_GENRE_COLORS` (film/TV) from `PODCAST_GENRE_COLORS` (iTunes `primaryGenreName` strings); `GenreFilter` takes a `genres` prop so each section filters its own list, and unknown genres fall back gracefully. Users can override colors per genre through `utils/userPrefs.js` — persisted at `milo.userPrefs.v1` in `localStorage`, with `subscribeUserPrefs()` notifying listeners and `getEffectiveGenreColors()` merging defaults with overrides.
 
 # Cloud Mode Build
@@ -155,6 +157,8 @@ Required build-time env (see `frontend/.env.example`):
 - `VITE_SUPABASE_ANON_KEY`
 
 Optional: `VITE_ZAI_PROXY_URL` (overrides the z.ai proxy endpoint for both web and native builds).
+
+Optional: `VITE_TMDB_TOKEN` (enables the movie/TV Find lookup; works in local mode too — the lookup is hidden when unset).
 
 # Marketing Site
 

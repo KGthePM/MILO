@@ -3,6 +3,8 @@ import { motion } from 'framer-motion';
 import { Plus, X, Globe, Lock } from 'lucide-react';
 import { useMovies } from '../../utils/MovieContext';
 import { IS_CLOUD } from '../../utils/mode';
+import MovieSearch from './MovieSearch';
+import { TMDB_ENABLED } from '../../api/tmdbLookup';
 
 const genres = ['Action', 'Comedy', 'Drama', 'Sci-Fi', 'Horror', 'Thriller', 'Romance', 'Animation', 'Documentary', 'Fantasy'];
 
@@ -18,6 +20,7 @@ export default function AddMovieModal({ isOpen, onClose, defaultStatus = 'watche
     release_year: '',
     is_public: true,
     status: defaultStatus,
+    artwork_url: '',
     ...(prefill || {}),
   };
   const [formData, setFormData] = useState(initialForm);
@@ -27,6 +30,20 @@ export default function AddMovieModal({ isOpen, onClose, defaultStatus = 'watche
   if (!isOpen) return null;
 
   const isToWatch = formData.status === 'to_watch';
+
+  // Picking a TMDB result overwrites the title and fills the database-sourced
+  // fields it actually returned; anything it lacked keeps the user's value.
+  // Rating, notes, status, and date are never touched.
+  const applyLookup = (d) => {
+    setFormData((prev) => ({
+      ...prev,
+      title: d.title || prev.title,
+      release_year: d.release_year ? String(d.release_year) : prev.release_year,
+      director: d.director || prev.director,
+      genre: d.genre || prev.genre,
+      artwork_url: d.artwork_url || prev.artwork_url,
+    }));
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -120,6 +137,8 @@ export default function AddMovieModal({ isOpen, onClose, defaultStatus = 'watche
           </div>
         )}
 
+        {TMDB_ENABLED && <MovieSearch onPick={applyLookup} />}
+
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label className="block text-sm font-medium mb-2 text-white/80">Status</label>
@@ -135,14 +154,23 @@ export default function AddMovieModal({ isOpen, onClose, defaultStatus = 'watche
 
           <div>
             <label className="block text-sm font-medium mb-2 text-white/80">Title *</label>
-            <input
-              type="text"
-              required
-              value={formData.title}
-              onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-              className="w-full px-4 py-3 rounded-lg glass"
-              placeholder="Enter movie title"
-            />
+            <div className="flex gap-3 items-start">
+              {formData.artwork_url && (
+                <img
+                  src={formData.artwork_url}
+                  alt=""
+                  className="w-8 h-12 rounded-md object-cover flex-shrink-0 border border-white/10"
+                />
+              )}
+              <input
+                type="text"
+                required
+                value={formData.title}
+                onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+                className="w-full px-4 py-3 rounded-lg glass"
+                placeholder="Enter movie title"
+              />
+            </div>
           </div>
 
           <div>
