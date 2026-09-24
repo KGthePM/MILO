@@ -82,6 +82,11 @@ export default function FloatingCommandBar({ page, onAdd, onRefresh }) {
       ? location.pathname === '/' || location.pathname === '/movies'
       : location.pathname.startsWith(CONTENT_TYPES[key].path);
 
+  // Width comes from the inline left/right insets alone. Never add `w-full`
+  // here: with left + right + width all set, CSS ignores `right`, making the
+  // bar a full viewport wide shifted right by `left` — off-screen on the right
+  // edge (8px in portrait, ~60px under the landscape notch). The inner bar's
+  // max-w keeps landscape phones a centered pill rather than a stretched strip.
   return (
     <>
     <motion.div
@@ -93,10 +98,10 @@ export default function FloatingCommandBar({ page, onAdd, onRefresh }) {
         left: 'calc(0.5rem + env(safe-area-inset-left))',
         right: 'calc(0.5rem + env(safe-area-inset-right))',
       }}
-      className="fixed bottom-2 lg:bottom-4 z-40 w-full flex justify-center pointer-events-none"
+      className="fixed bottom-2 lg:bottom-4 z-40 flex justify-center pointer-events-none"
     >
       <div
-        className={`glass rounded-2xl px-1.5 py-1.5 lg:px-2 lg:py-2 flex items-center justify-between lg:justify-start gap-0.5 lg:gap-1 shadow-2xl w-full lg:w-auto pointer-events-auto ${A.border}`}
+        className={`glass rounded-2xl px-1.5 py-1.5 lg:px-2 lg:py-2 flex items-center justify-between lg:justify-start gap-0.5 lg:gap-1 shadow-2xl w-full max-w-md lg:max-w-none lg:w-auto pointer-events-auto ${A.border}`}
       >
         {/* Page toggle — one entry per content type */}
         {Object.values(CONTENT_TYPES).map((ct) => {
