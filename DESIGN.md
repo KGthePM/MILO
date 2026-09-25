@@ -55,9 +55,23 @@ Most screens are utilities. A few are the product, and they get disproportionate
 - **Empty states.** The screen a brand-new user hits immediately after that. `components/shared/EmptyState.jsx`. A dead end becomes an invitation: flat accent grid, ghost cards hinting at what will land there, one clear action.
 - **Loading.** `components/shared/SkeletonGrid.jsx`. Skeletons in the real card's shape, not a spinner — "your library is arriving" rather than "the app is busy," and no layout jump when data lands.
 
+### Easter eggs: the playful register
+
+`utils/warpEggs.js`. These are the neon road signs, the VHS tape, the lost remote, the kawaii set and the rest that fly past the sign-in warp and drift across the sign-in and landing backdrops. They landed because they are **charming and still techno**: every joke is drawn in the same language as the grid itself. That means hairline strokes, the two-pass fake bloom, and the dark backdrop. The whimsy lives in the *words* and in tiny motion (a waving paw, curling steam, a clapper snapping shut), never in a change of rendering style. If a new egg would look at home in a sticker pack, it's wrong. It should look like it was always part of the grid.
+
+Rules for adding one:
+
+- **Only on first-impression surfaces.** Eggs appear on sign-in, the landing hero and the warp. Never inside the app, never over the intro reel, and never behind anything someone is reading. They're for the few seconds before someone has any data. They're not decoration for the library.
+- **Periphery, not centre stage.** Eggs fly past the edges and never land on the card or the vanishing point. Something you catch out of the corner of your eye is more charming than something that asks for attention.
+- **One idea, readable in about a second.** Two lines at most, a few words each. The joke has to land mid-flight.
+- **Knowing nods for people who watch, read and listen.** Spoilers, watchlist guilt, one-more-episode, the book being better. No brands, logos, trademarks or real people. No mean humour. Never ask for a review or money (MILO is never monetized).
+- **Colour follows §1.** A content-type accent appears only on the egg that stands for that type (the popcorn is cyan because it's Movies). Colours that are purely decorative, like the kawaii blush and the daruma red, stay off the accent tokens.
+- **Canvas line art only.** Use the shared `glow()` stroke and put `backing()` under any text. No images, no emoji, no `shadowBlur`. Draw in roughly 100 local units and divide line widths by the scale, which `glow()` already does.
+- **Scarcity keeps it special.** A shuffle-bag means nothing repeats until the whole pool has shown. One rare egg exists; keep it rare. More eggs in the pool is fine. More eggs *on screen* at once is not.
+
 ## 5. Copy
 
-Short, concrete, quietly cinematic. Never cute, never exclamation-marked.
+Short, concrete, quietly cinematic. Never cute, never exclamation-marked. The easter eggs (§4) are the one sanctioned exception. Jokes live there, and only there.
 
 > "Your reel is empty — log the first film and MILO starts learning what you actually love."
 
