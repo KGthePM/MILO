@@ -143,7 +143,7 @@ Frontend state: `MovieContext.jsx`, `TVSeriesContext.jsx`, `PodcastContext.jsx`,
 
 ## Marketing Site
 
-`MILO_Landing/milo-landing/` is a **separate, standalone static site** (plain `index.html` + screenshots, CDN Tailwind, no build step, its own `netlify.toml` with a CSP header). It is not part of the frontend build and shares no code with it. The in-app `/landing` route (`pages/LandingPage.jsx`) is a different, React-rendered page.
+The marketing page is the in-app `/landing` route (`pages/LandingPage.jsx`), deployed with the app. A standalone static copy used to live in `MILO_Landing/milo-landing/`; it was deleted as stale — don't recreate it.
 
 ## Key Configuration
 

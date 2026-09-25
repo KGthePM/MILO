@@ -9,7 +9,6 @@ Dual-mode monorepo — one React frontend, two data/AI backends selected at buil
 - `frontend/netlify/functions/` - the single serverless function (`zai-proxy.js`); cloud mode only
 - `movies.db` - SQLite DB, auto-created in repo root (local mode only; gitignored)
 - `supabase/migrations/` - 10 SQL migrations for cloud Postgres
-- `MILO_Landing/milo-landing/` - standalone static marketing site; **not** part of the frontend build
 - `scripts/` - one-off Node scripts (SQLite → Supabase migration)
 - `Archive_doc_update/` - design/plan notes kept for context (not live docs)
 - Cloud build deploys to Netlify (`frontend/netlify.toml`, SPA fallback → `/index.html`)
@@ -166,7 +165,7 @@ Optional: `VITE_TMDB_TOKEN` (enables the movie/TV Find lookup; works in local mo
 
 # Marketing Site
 
-`MILO_Landing/milo-landing/` is a **separate, standalone static site** — a single `index.html` with CDN Tailwind, three screenshots, and its own `netlify.toml` (no build command; `publish = "."`; CSP / `X-Frame-Options` headers; SPA fallback). It shares no code with `frontend/` and is deployed as its own Netlify site. Do not confuse it with the in-app `/landing` route, which is the React-rendered `pages/LandingPage.jsx`.
+The marketing page is the in-app `/landing` route (`pages/LandingPage.jsx`), deployed with the app. A standalone static copy used to live in `MILO_Landing/milo-landing/`; it was deleted as stale — don't recreate it.
 
 # Import / Migration
 
