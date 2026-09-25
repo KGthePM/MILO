@@ -13,6 +13,7 @@ import ResetPasswordPage from './pages/ResetPasswordPage';
 import MiloAssistantFab from './components/shared/MiloAssistantFab';
 import AppLockGate from './components/shared/AppLockGate';
 import ScrollToTop from './components/shared/ScrollToTop';
+import OnboardingReel from './components/onboarding/OnboardingReel';
 import { MovieProvider } from './utils/MovieContext';
 import { TVSeriesProvider } from './utils/TVSeriesContext';
 import { PodcastProvider } from './utils/PodcastContext';
@@ -65,6 +66,7 @@ function GatedApp() {
                 {IS_CLOUD && <Route path="/friends/:friendId" element={<FriendProfilePage />} />}
               </Routes>
               <MiloAssistantFab />
+              <OnboardingReel />
           </BookProvider>
           </PodcastProvider>
         </TVSeriesProvider>

@@ -51,6 +51,7 @@ Motion earns its place by explaining something — where a thing came from, that
 Most screens are utilities. A few are the product, and they get disproportionate care:
 
 - **First launch / sign-in.** The one screen every user sees before they have any data. It is allowed to be the showpiece: canvas deep-field, wordmark power-on, warp-out on a real sign-in. The warp fires only on a *watched* sign-in — never on session restore or token refresh, which would tax every launch for a flourish nobody asked for.
+- **The intro reel.** `components/onboarding/OnboardingReel.jsx`. It plays right after that first sign-in, over the same deep field, so the warp lands inside it. It sells ideas rather than touring live UI, because a new user's library is empty and there's nothing to point at yet. The per-feature "you are here" moments belong to `DiscoveryHint`: one sentence in the flow of the page, dismissed forever. Keep hints rare; four exist, and each one has to explain something the UI can't say for itself.
 - **Empty states.** The screen a brand-new user hits immediately after that. `components/shared/EmptyState.jsx`. A dead end becomes an invitation: flat accent grid, ghost cards hinting at what will land there, one clear action.
 - **Loading.** `components/shared/SkeletonGrid.jsx`. Skeletons in the real card's shape, not a spinner — "your library is arriving" rather than "the app is busy," and no layout jump when data lands.
 

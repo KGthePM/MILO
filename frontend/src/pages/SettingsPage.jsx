@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { ArrowLeft, Settings as SettingsIcon, Sparkles, Palette, Database, User, ShieldCheck } from 'lucide-react';
 import { FriendsProvider } from '../utils/FriendsContext';
 import { IS_CLOUD } from '../utils/mode';
@@ -20,7 +20,19 @@ const TABS = [
 ];
 
 function SettingsContent() {
-  const [activeTab, setActiveTab] = useState(TABS[0].id);
+  // `?tab=` lets other surfaces (the intro reel) deep-link a tab. Honoured only
+  // for ids that exist in this build — the tab list differs by mode/platform.
+  // Tracked in an effect, not just the initial state, because the reel can be
+  // replayed from this very page and then navigate to another tab of it.
+  const [searchParams] = useSearchParams();
+  const requestedTab = searchParams.get('tab');
+  const isValidTab = (id) => TABS.some((t) => t.id === id);
+  const [activeTab, setActiveTab] = useState(
+    isValidTab(requestedTab) ? requestedTab : TABS[0].id
+  );
+  useEffect(() => {
+    if (isValidTab(requestedTab)) setActiveTab(requestedTab);
+  }, [requestedTab]);
   const [session, setSession] = useState(null);
 
   useEffect(() => {

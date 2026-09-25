@@ -23,6 +23,7 @@ import AddTVSeriesModal from '../tv/AddTVSeriesModal';
 import AddPodcastModal from '../podcasts/AddPodcastModal';
 import AddBookModal from '../books/AddBookModal';
 import AIProvidersHelpModal from '../settings/AIProvidersHelpModal';
+import DiscoveryHint from '../onboarding/DiscoveryHint';
 
 // Per-content-type wiring. These replace the `contentType === 'tv' ? … : …`
 // ternaries that used to run through this file, which silently treated any
@@ -383,6 +384,9 @@ export default function EnhancedRecommendations({ contentType = 'movie' }) {
             <HelpCircle size={18} />
           </button>
         </div>
+        <DiscoveryHint id="recs-intro" contentType={contentType}>
+          Recommendations blend your ratings, a taste profile MILO builds from them, and every reaction you give. The more you log, the sharper they get.
+        </DiscoveryHint>
         <div className="flex flex-col items-center text-center py-8 gap-4">
           <Sparkles size={48} className={`${A.text} opacity-60`} />
           <p className="text-white/80 max-w-md leading-relaxed">
@@ -624,6 +628,9 @@ export default function EnhancedRecommendations({ contentType = 'movie' }) {
               </motion.div>
             ) : (
               <div className="space-y-3">
+                <DiscoveryHint id="rec-feedback" contentType={contentType}>
+                  Tell MILO how each pick lands. Interested adds it to your watchlist, Not for me steers the next round away, Seen it logs it to your library.
+                </DiscoveryHint>
                 {filteredRecommendations.map((rec, index) => {
                   const fbKey = feedbackKeyFor(rec);
                   const fbActive = feedbackMap[fbKey]?.feedback;

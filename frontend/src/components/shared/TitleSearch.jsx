@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { Search, Loader2 } from 'lucide-react';
 import { accentFor, iconFor } from '../../utils/contentTypes';
+import DiscoveryHint from '../onboarding/DiscoveryHint';
 
 // Debounced "Find a title" box shared by the podcast (iTunes) and movie/TV
 // (TMDB) Add and Edit modals. Purely additive: it fills the form below, and
@@ -79,6 +80,9 @@ export default function TitleSearch({
 
   return (
     <div className="mb-5 pb-5 border-b border-white/10">
+      <DiscoveryHint id="title-search" contentType={contentType} className="mb-4">
+        Start typing a name and pick the match — MILO fills in the artwork, year and details for you.
+      </DiscoveryHint>
       <label className="block text-sm font-medium mb-2 text-white/80">
         {label} <span className="text-white/40 font-normal">— or just fill it in below</span>
       </label>

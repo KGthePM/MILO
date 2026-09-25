@@ -13,11 +13,13 @@ import Stats from '../components/shared/Stats';
 import FloatingCommandBar from '../components/shared/FloatingCommandBar';
 import EmptyState from '../components/shared/EmptyState';
 import SkeletonGrid from '../components/shared/SkeletonGrid';
+import useAddFromQuery from '../components/onboarding/useAddFromQuery';
 
 function TVSeriesPageContent() {
   const { series, analytics, loading, error, fetchSeries } = useTVSeries();
   const [activeTab, setActiveTab] = useState('series');
   const [showAddModal, setShowAddModal] = useState(false);
+  useAddFromQuery(setShowAddModal);
   const [showEditModal, setShowEditModal] = useState(false);
   const [editingSeries, setEditingSeries] = useState(null);
   const [filterParams, setFilterParams] = useState({ sortBy: 'most_recent' });

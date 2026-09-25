@@ -14,6 +14,7 @@ import Stats from '../components/shared/Stats';
 import FloatingCommandBar from '../components/shared/FloatingCommandBar';
 import EmptyState from '../components/shared/EmptyState';
 import SkeletonGrid from '../components/shared/SkeletonGrid';
+import useAddFromQuery from '../components/onboarding/useAddFromQuery';
 import { BOOK_GENRE_LIST } from '../utils/genreColors';
 import { CONTENT_TYPES, ACCENT } from '../utils/contentTypes';
 
@@ -32,6 +33,7 @@ export default function BooksPage() {
   const { books, analytics, loading, error, fetchBooks } = useBooks();
   const [activeTab, setActiveTab] = useState('books');
   const [showAddModal, setShowAddModal] = useState(false);
+  useAddFromQuery(setShowAddModal);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showGoodreads, setShowGoodreads] = useState(false);
   const [editingBook, setEditingBook] = useState(null);

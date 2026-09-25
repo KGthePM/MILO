@@ -13,6 +13,7 @@ import Stats from '../components/shared/Stats';
 import FloatingCommandBar from '../components/shared/FloatingCommandBar';
 import EmptyState from '../components/shared/EmptyState';
 import SkeletonGrid from '../components/shared/SkeletonGrid';
+import useAddFromQuery from '../components/onboarding/useAddFromQuery';
 import { PODCAST_GENRE_LIST } from '../utils/genreColors';
 import { CONTENT_TYPES, ACCENT } from '../utils/contentTypes';
 
@@ -31,6 +32,7 @@ export default function PodcastsPage() {
   const { podcasts, analytics, loading, error, fetchPodcasts } = usePodcasts();
   const [activeTab, setActiveTab] = useState('podcasts');
   const [showAddModal, setShowAddModal] = useState(false);
+  useAddFromQuery(setShowAddModal);
   const [showEditModal, setShowEditModal] = useState(false);
   const [editingPodcast, setEditingPodcast] = useState(null);
   const [filterParams, setFilterParams] = useState({ sortBy: 'most_recent' });

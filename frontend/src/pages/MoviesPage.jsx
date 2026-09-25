@@ -13,11 +13,13 @@ import Stats from '../components/shared/Stats';
 import FloatingCommandBar from '../components/shared/FloatingCommandBar';
 import EmptyState from '../components/shared/EmptyState';
 import SkeletonGrid from '../components/shared/SkeletonGrid';
+import useAddFromQuery from '../components/onboarding/useAddFromQuery';
 
 function MoviesPageContent() {
   const { movies, analytics, loading, error, fetchMovies, fetchAnalytics } = useMovies();
   const [activeTab, setActiveTab] = useState('movies');
   const [showAddModal, setShowAddModal] = useState(false);
+  useAddFromQuery(setShowAddModal);
   const [showEditModal, setShowEditModal] = useState(false);
   const [editingMovie, setEditingMovie] = useState(null);
 

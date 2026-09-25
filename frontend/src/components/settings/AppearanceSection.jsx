@@ -1,15 +1,20 @@
 import { useState } from 'react';
-import { RotateCcw } from 'lucide-react';
-import { loadUserPrefs, saveUserPrefs } from '../../utils/userPrefs';
+import { RotateCcw, PlayCircle, Lightbulb } from 'lucide-react';
+import { loadUserPrefs, saveUserPrefs, setIntroSeen, resetHints } from '../../utils/userPrefs';
 import { DEFAULT_GENRE_COLORS, GENRE_LIST } from '../../utils/genreColors';
 
 export default function AppearanceSection() {
   const [prefs, setPrefs] = useState(loadUserPrefs());
 
+  // Merge onto a fresh read, not this component's copy: onboarding state in
+  // the same prefs object changes elsewhere (hints, the reel) while this tab
+  // is open, and writing back a stale copy would silently undo it.
   const update = (next) => {
-    setPrefs(next);
-    saveUserPrefs(next);
+    const merged = { ...loadUserPrefs(), genreColors: next.genreColors };
+    setPrefs(merged);
+    saveUserPrefs(merged);
   };
+  const [tipsReset, setTipsReset] = useState(false);
 
   const setGenreColor = (genre, color) => {
     update({
@@ -74,6 +79,28 @@ export default function AppearanceSection() {
               </div>
             );
           })}
+        </div>
+      </section>
+
+      <section>
+        <h3 className="text-white font-semibold mb-2">Guidance</h3>
+        <p className="text-white/60 text-sm mb-4">
+          Rewatch the intro, or bring back the one-time tips that point out features as you reach them.
+        </p>
+        <div className="flex flex-wrap gap-3">
+          <button
+            onClick={() => setIntroSeen(false)}
+            className="flex items-center gap-2 px-4 py-2 rounded-lg glass border border-white/10 text-white/80 hover:text-white hover:bg-white/10 text-sm transition-all"
+          >
+            <PlayCircle size={16} /> Replay intro
+          </button>
+          <button
+            onClick={() => { resetHints(); setTipsReset(true); }}
+            disabled={tipsReset}
+            className="flex items-center gap-2 px-4 py-2 rounded-lg glass border border-white/10 text-white/80 hover:text-white hover:bg-white/10 text-sm transition-all disabled:opacity-60 disabled:cursor-default"
+          >
+            <Lightbulb size={16} /> {tipsReset ? 'Tips will show again' : 'Show tips again'}
+          </button>
         </div>
       </section>
     </div>
