@@ -81,7 +81,7 @@ not
 
 **Say the right thing for the actual situation.** An empty grid means two different things wearing the same words: *you have nothing yet* (wants an invitation to add) and *your filters matched nothing* (wants a way back out). Showing "Add your first movie" to someone with 300 films and a bad search term is just wrong. `EmptyState`'s `variant` prop splits them; pages compute `filtersActive` and pass `filtered`.
 
-Podcasts say **Listened / To Listen**, movies and TV say **Watched / To Watch** — from `CONTENT_TYPES[key].verb`. The stored `status` is `'watched'` either way; only the label differs, and changing the stored value would drop podcasts out of every AI feature.
+Podcasts say **Listened / To Listen**, books say **Read / To Read**, movies and TV say **Watched / To Watch** — from `CONTENT_TYPES[key].verb`. The stored `status` is `'watched'` either way; only the label differs, and changing the stored value would drop podcasts and books out of every AI feature.
 
 ## 6. Before you ship a surface
 

@@ -245,7 +245,7 @@ function TVSeriesPageContent() {
             <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold mb-1 flex items-center flex-wrap">
               <span className="neon-text-magenta">MI</span>
               <span className="neon-text-cyan">LO</span>
-              <span className="text-sm md:text-base text-white/40 font-light ml-4">Movie Intelligence & Learning Overseer</span>
+              <span className="text-sm md:text-base text-white/40 font-light ml-4">Media Intelligence & Learning Overseer</span>
             </h1>
             <div className="flex items-center gap-2 mb-2">
               <div className="h-0.5 flex-1 bg-gradient-to-r from-transparent via-neon-magenta/50 to-transparent"></div>

@@ -2,6 +2,8 @@
 
 > Visual and UX intent lives in `DESIGN.md` — the accent registry rules, motion constraints that WKWebView enforces, and the surfaces that get disproportionate care. Read it before building any new UI.
 
+MILO = **Media Intelligence & Learning Overseer** (the M was "Movie" until podcasts and books arrived; it's a name change only, nothing in the schema or routes moved).
+
 Dual-mode monorepo — one React frontend, two data/AI backends selected at build time, three delivery targets:
 - `backend/` - Node.js + Express 5 + SQLite (port 3000, **local mode only** — unused in cloud)
 - `frontend/` - React 18 + Vite 5 + Tailwind, react-router-dom v7 (port 5173)

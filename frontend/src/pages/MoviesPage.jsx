@@ -231,7 +231,7 @@ function MoviesPageContent() {
             <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold mb-2 flex items-center flex-wrap">
               <span className="neon-text-cyan">MI</span>
               <span className="neon-text-magenta">LO</span>
-              <span className="text-sm md:text-base text-white/40 font-light ml-4">Movie Intelligence & Learning Overseer</span>
+              <span className="text-sm md:text-base text-white/40 font-light ml-4">Media Intelligence & Learning Overseer</span>
             </h1>
             <p className="text-white/60">Track, discover, and analyze your movie journey</p>
           </div>

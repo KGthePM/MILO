@@ -286,7 +286,7 @@ function CloudAuthGate({ children }) {
                 Cloud
               </span>
             </div>
-            <p className="text-white/40 font-light text-sm mt-3">Movie Intelligence &amp; Learning Overseer</p>
+            <p className="text-white/40 font-light text-sm mt-3">Media Intelligence &amp; Learning Overseer</p>
           </div>
 
           {/* What MILO actually covers — the one thing the sign-in screen never

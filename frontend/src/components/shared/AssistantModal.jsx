@@ -220,7 +220,7 @@ export default function AssistantModal({ isOpen, onClose }) {
                 </div>
                 <div>
                   <h2 className="text-xl font-bold text-white">MILO</h2>
-                  <p className="text-xs text-white/60">Movie Intelligence & Learning Overseer</p>
+                  <p className="text-xs text-white/60">Media Intelligence & Learning Overseer</p>
                 </div>
               </div>
               <div className="flex items-center gap-1">

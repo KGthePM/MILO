@@ -8,7 +8,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-**MILO** — a movie, TV, podcast, and book tracking dashboard. One React frontend, two data/AI backends selected at **build time** via `VITE_MILO_MODE=local|cloud` (default `local`), shipped to three targets:
+**MILO** (Media Intelligence & Learning Overseer — the M was "Movie" until the app outgrew it) — a movie, TV, podcast, and book tracking dashboard. One React frontend, two data/AI backends selected at **build time** via `VITE_MILO_MODE=local|cloud` (default `local`), shipped to three targets:
 
 - **Local mode**: React frontend + Express 5 / SQLite backend, Ollama-only AI, single user.
 - **Cloud mode**: same React app talks to Supabase (Postgres + Auth) for CRUD and calls LLM providers **directly from the browser** with user-supplied API keys (BYOK). No backend AI inference, no server-side secrets. Cloud build deploys to Netlify (`frontend/netlify.toml`, SPA fallback → `/index.html`).
