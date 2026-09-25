@@ -8,13 +8,14 @@ Read this before building any new UI. `CLAUDE.md` / `AGENTS.md` cover architectu
 
 ## 1. The palette is a system, not a mood
 
-Three accents, each permanently bound to a content type:
+Four accents, each permanently bound to a content type:
 
 | Accent | Token | Owns |
 |---|---|---|
 | Cyan | `neon-cyan` `#00d4ff` | Movies |
 | Magenta | `neon-magenta` `#ff006e` | TV |
 | Purple | `neon-purple` `#8338ec` | Podcasts |
+| Orange | `neon-orange` `#ff7a18` | Books |
 | Yellow | `neon-yellow` `#ffbe0b` | Accent only — never a content type |
 
 **Never pick an accent by hand.** `utils/contentTypes.js` is the source of truth: `accentFor(type)` returns the `ACCENT` entry, `iconFor(type)` returns the icon. Every class string in `ACCENT` is spelled out in full because Tailwind's extractor cannot resolve `` `text-${accent}` `` — a computed class name is silently purged from the production build and you get an unstyled element in prod that looked fine in dev.

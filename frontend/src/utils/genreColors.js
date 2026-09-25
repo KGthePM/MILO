@@ -34,9 +34,28 @@ export const PODCAST_GENRE_COLORS = {
   Leisure: '#f472b6',
 };
 
+// Book genres. Names already defined above (Fantasy, Sci-Fi, Horror, Thriller,
+// Romance, Fiction, History, Science, Business) share that color, since the
+// merged map below can only hold one color per name — they're listed in
+// BOOK_GENRE_LIST rather than repeated here.
+export const BOOK_GENRE_COLORS = {
+  'Literary Fiction': '#c084fc',
+  Mystery: '#6366f1',
+  'Historical Fiction': '#d97706',
+  'Young Adult': '#f43f5e',
+  'Graphic Novel': '#facc15',
+  Poetry: '#e879f9',
+  Nonfiction: '#94a3b8',
+  'Biography & Memoir': '#14b8a6',
+  Philosophy: '#818cf8',
+  'Self-Help': '#4ade80',
+  Essays: '#fdba74',
+};
+
 export const DEFAULT_GENRE_COLORS = {
   ...SCREEN_GENRE_COLORS,
   ...PODCAST_GENRE_COLORS,
+  ...BOOK_GENRE_COLORS,
 };
 
 // Filter/select options are per content type — a podcast shouldn't offer
@@ -44,6 +63,10 @@ export const DEFAULT_GENRE_COLORS = {
 // the full DEFAULT_GENRE_COLORS map for customization.
 export const SCREEN_GENRE_LIST = Object.keys(SCREEN_GENRE_COLORS);
 export const PODCAST_GENRE_LIST = Object.keys(PODCAST_GENRE_COLORS).sort();
+export const BOOK_GENRE_LIST = [
+  ...Object.keys(BOOK_GENRE_COLORS),
+  'Fiction', 'Fantasy', 'Sci-Fi', 'Horror', 'Thriller', 'Romance', 'History', 'Science', 'Business',
+].sort();
 export const GENRE_LIST = Object.keys(DEFAULT_GENRE_COLORS);
 
 export function getGenreColor(genre, overrides = {}) {

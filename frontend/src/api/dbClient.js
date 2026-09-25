@@ -16,6 +16,9 @@ const IMPORTABLE_COLUMNS = [
   'publisher',
   'episodes_heard',
   'artwork_url',
+  'author',
+  'page_count',
+  'pages_read',
 ];
 
 let _SQL = null;
@@ -117,6 +120,9 @@ export function processDbRows(rows, existingKeys = new Set()) {
       publisher: row.publisher || null,
       episodes_heard: row.episodes_heard != null ? Number(row.episodes_heard) || null : null,
       artwork_url: row.artwork_url || null,
+      author: row.author || null,
+      page_count: row.page_count != null ? Number(row.page_count) || null : null,
+      pages_read: row.pages_read != null ? Number(row.pages_read) || null : null,
     });
   }
 

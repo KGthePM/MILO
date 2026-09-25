@@ -11,8 +11,8 @@ const CACHE_TTL = 24 * 60 * 60 * 1000; // 24 hours
 // ESM module). A preset id arrives as the recommendation `type`; keep the
 // directive text in sync with the frontend module. Presets are scoped per
 // content type in the frontend UI (movies/TV = viewing moods, podcasts =
-// listening genres); every directive stays in the map because the backend
-// serves all content types.
+// listening genres, books = reading moods); every directive stays in the map
+// because the backend serves all content types.
 const PRESET_DIRECTIVES = {
   rainy_day: 'Right now I want cozy, immersive comfort viewing — the kind of bad-weather escapism you sink into under a blanket. Favor warm, absorbing, low-stress picks over anything abrasive or exhausting.',
   feel_good: 'Right now I want an uplifting, feel-good watch — warm, satisfying, and hopeful, with an ending that leaves me better than it found me. Steer away from bleak or downer material.',
@@ -29,6 +29,12 @@ const PRESET_DIRECTIVES = {
   comfort_listen: 'Right now I want a comfort listen — warm, companionable shows that feel like time with a good friend: low-stakes, easy to drift along with, and never exhausting.',
   quick_hits: 'Right now I want quick hits — episodic podcasts that fit a commute, roughly 45 minutes or under per episode, satisfying without a huge episode backlog or a long serialized commitment.',
   blow_my_mind: 'Right now I want a mind-bender — podcasts that upend how I see things: big ideas, strange frontiers, and perspective-shifting conversations that keep me thinking long after the episode ends.',
+  page_turner: 'Right now I want a page-turner — propulsive, can\'t-put-it-down books with momentum, hooks at the end of every chapter, and a story that pulls me through in a few sittings.',
+  cozy_read: 'Right now I want a cozy read — warm, gentle, comforting books with low stakes and a sense of place I want to curl up in. Nothing grim or exhausting.',
+  big_ideas: 'Right now I want big ideas — nonfiction or fiction that changes how I see the world: sharp thinking, surprising arguments, and ideas I will keep turning over after the last page.',
+  short_reads: 'Right now I want short reads — books of roughly 250 pages or under, novellas and slim volumes that are complete and satisfying without a big time commitment.',
+  screen_to_page: 'Right now I want books connected to what I watch — the novels, memoirs, and source material behind films and shows that fit my taste, or books that scratch the same itch as my favorite screen stories.',
+  missed_classics: 'Right now I want a classic I have not read yet — an essential, enduring book that still feels alive today and fits my taste, not homework.',
 };
 
 function isPresetId(id) {
@@ -132,6 +138,7 @@ function formatDigestLine(m) {
   const bits = [`${m.rating}/10`];
   if (m.genre) bits.push(m.genre);
   if (m.director) bits.push('dir. ' + m.director);
+  if (m.author) bits.push('by ' + m.author);
   if (m.release_year) bits.push(String(m.release_year));
   const notes = truncateNotes(m.notes);
   return `${m.title} (${bits.join(', ')})${notes ? ` — ${notes}` : ''}`;
@@ -214,8 +221,8 @@ function buildLibraryDigest(userMovies, contentLabel) {
 // are mirrored verbatim in frontend/src/ai/prompt.js. Keep the two in sync.
 // ---------------------------------------------------------------------------
 
-function buildTasteAnalysisPrompt(digest, contentLabel = 'movies, TV & podcasts') {
-  const systemPrompt = `You are a media taste analyst covering film, television, and podcasts. Study the user's library digest and compile a concise, structured profile of their taste.
+function buildTasteAnalysisPrompt(digest, contentLabel = 'movies, TV, podcasts & books') {
+  const systemPrompt = `You are a media taste analyst covering film, television, podcasts, and books. Study the user's library digest and compile a concise, structured profile of their taste.
 
 Base every field strictly on the evidence in the digest — especially what they rate highly versus poorly. Do not invent facts. Be specific and vivid, not generic.
 
@@ -241,7 +248,7 @@ Analyze my ${contentLabel} taste and return the JSON profile described. Focus on
 - What my lowest-rated titles reveal about what to steer away from (dislikes)
 - Recurring themes, styles, directors, and eras
 - Patterns (e.g. rating auteur work above box-office hits) and any hidden-gem affinity
-- How my taste differs across the media I track (movies, TV, podcasts) — only for those present in the digest`;
+- How my taste differs across the media I track (movies, TV, podcasts, books) — only for those present in the digest`;
 
   return { systemPrompt, userPrompt };
 }
@@ -367,6 +374,7 @@ const CONTENT_PROMPT_LABELS = {
   movie: { label: 'movies', history: 'viewing history', consumed: 'watched' },
   tv: { label: 'TV series', history: 'viewing history', consumed: 'watched' },
   podcast: { label: 'podcasts', history: 'listening history', consumed: 'listened to' },
+  book: { label: 'books', history: 'reading history', consumed: 'read' },
 };
 
 function buildRecommendationPrompt(userMovies, type, contentType, options = {}) {

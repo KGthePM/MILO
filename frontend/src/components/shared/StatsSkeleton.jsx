@@ -22,7 +22,7 @@ function Card({ ring, delay }) {
 
 /**
  * @param {object} props
- * @param {string} [props.type]  'movie' | 'tv' | 'podcast' — drives the first card's accent
+ * @param {string} [props.type]  'movie' | 'tv' | 'podcast' | 'book' — drives the first card's accent
  */
 export default function StatsSkeleton({ type = 'movie' }) {
   const a = accentFor(type);

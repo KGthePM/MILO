@@ -31,6 +31,9 @@ function initializeDatabase() {
       publisher TEXT,
       episodes_heard INTEGER,
       artwork_url TEXT,
+      author TEXT,
+      page_count INTEGER,
+      pages_read INTEGER,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )
   `;
@@ -107,8 +110,19 @@ const PODCAST_COLUMNS = [
 ];
 const PODCAST_COLUMN_NAMES = PODCAST_COLUMNS.map(([name]) => name);
 
-function ensurePodcastColumns(columnNames, done) {
-  const missing = PODCAST_COLUMNS.filter(([name]) => !columnNames.includes(name));
+// Book support (mirrors supabase/migrations/0011_books.sql). Same additive path.
+const BOOK_COLUMNS = [
+  ['author', 'TEXT'],
+  ['page_count', 'INTEGER'],
+  ['pages_read', 'INTEGER'],
+];
+const BOOK_COLUMN_NAMES = BOOK_COLUMNS.map(([name]) => name);
+
+const ADDITIVE_COLUMNS = [...PODCAST_COLUMNS, ...BOOK_COLUMNS];
+const ADDITIVE_COLUMN_NAMES = [...PODCAST_COLUMN_NAMES, ...BOOK_COLUMN_NAMES];
+
+function ensureAdditiveColumns(columnNames, done) {
+  const missing = ADDITIVE_COLUMNS.filter(([name]) => !columnNames.includes(name));
   if (missing.length === 0) {
     done();
     return;
@@ -122,7 +136,7 @@ function ensurePodcastColumns(columnNames, done) {
         console.error(`Error adding ${name} column:`, err.message);
       }
       if (--remaining === 0) {
-        console.log(`Added ${missing.length} podcast column(s) to movies table`);
+        console.log(`Added ${missing.length} podcast/book column(s) to movies table`);
         done();
       }
     });
@@ -165,8 +179,8 @@ function migrateDatabase() {
 
     checkDateWatchedConstraint((hasNotNullConstraint) => {
       if (!needsMigration && !hasNotNullConstraint) {
-        // recoverTvTypes() reads the podcast columns, so they must exist first.
-        ensurePodcastColumns(columnNames, recoverTvTypes);
+        // recoverTvTypes() reads the podcast/book columns, so they must exist first.
+        ensureAdditiveColumns(columnNames, recoverTvTypes);
       }
       if (needsMigration || hasNotNullConstraint) {
         console.log('Running database migration...');
@@ -195,6 +209,9 @@ function migrateDatabase() {
               publisher TEXT,
               episodes_heard INTEGER,
               artwork_url TEXT,
+              author TEXT,
+              page_count INTEGER,
+              pages_read INTEGER,
               created_at DATETIME DEFAULT CURRENT_TIMESTAMP
             )
           `, (err) => {
@@ -203,7 +220,7 @@ function migrateDatabase() {
               return;
             }
 
-            const targetCols = ['id', 'title', 'rating', 'genre', 'date_watched', 'notes', 'director', 'release_year', 'type', 'num_seasons', 'total_episodes', 'status', ...PODCAST_COLUMN_NAMES, 'created_at'];
+            const targetCols = ['id', 'title', 'rating', 'genre', 'date_watched', 'notes', 'director', 'release_year', 'type', 'num_seasons', 'total_episodes', 'status', ...ADDITIVE_COLUMN_NAMES, 'created_at'];
             const has = (c) => columnNames.includes(c);
             const sourceExpr = (col) => {
               if (col === 'type') {
@@ -212,7 +229,7 @@ function migrateDatabase() {
               if (col === 'status') {
                 return has('status') ? "COALESCE(status, 'watched')" : "'watched'";
               }
-              if (['director', 'release_year', 'num_seasons', 'total_episodes', ...PODCAST_COLUMN_NAMES].includes(col)) {
+              if (['director', 'release_year', 'num_seasons', 'total_episodes', ...ADDITIVE_COLUMN_NAMES].includes(col)) {
                 return has(col) ? col : 'NULL';
               }
               return col;
@@ -254,9 +271,10 @@ function migrateDatabase() {
 }
 
 // Rows that carry season/episode counts but lost their type are recovered as TV.
-// The podcast-column guard matters: podcasts also carry total_episodes, so
+// The podcast/book-column guard matters: podcasts also carry total_episodes, so
 // without it a podcast whose type ever defaulted to 'movie' would be silently
-// converted into a TV series on the next startup.
+// converted into a TV series on the next startup. Book columns are checked for
+// the same reason.
 function recoverTvTypes() {
   db.run(
     `UPDATE movies
@@ -265,7 +283,9 @@ function recoverTvTypes() {
        AND (num_seasons IS NOT NULL OR total_episodes IS NOT NULL)
        AND host IS NULL
        AND publisher IS NULL
-       AND artwork_url IS NULL`,
+       AND artwork_url IS NULL
+       AND author IS NULL
+       AND page_count IS NULL`,
     function (err) {
       if (err) {
         console.error('Error recovering TV types:', err.message);

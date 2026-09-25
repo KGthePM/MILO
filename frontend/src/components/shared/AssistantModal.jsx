@@ -5,11 +5,13 @@ import { assistantApi } from '../../api/assistantApi';
 import { useMovies } from '../../utils/MovieContext';
 import { useTVSeries } from '../../utils/TVSeriesContext';
 import { usePodcasts } from '../../utils/PodcastContext';
+import { useBooks } from '../../utils/BookContext';
 
 const quickActions = [
   'Find similar movies',
   'Find similar TV shows',
   'Find similar podcasts',
+  'What should I read next?',
   'Recommend hidden gems',
   'Analyze my taste',
   'What should I watch this weekend?'
@@ -41,14 +43,16 @@ export default function AssistantModal({ isOpen, onClose }) {
   const { movies, analytics: movieAnalytics } = useMovies();
   const { series, analytics: tvAnalytics } = useTVSeries();
   const { podcasts, analytics: podcastAnalytics } = usePodcasts();
+  const { books, analytics: bookAnalytics } = useBooks();
 
   const combinedMovies = movies;
   const combinedTV = series;
   const combinedPodcasts = podcasts;
+  const combinedBooks = books;
   // Count-weighted average across every content type that has any rows, so
   // adding a type can't skew the mean the way a fixed two-way fallback did.
   const combinedAnalytics = (() => {
-    const parts = [movieAnalytics, tvAnalytics, podcastAnalytics].filter((a) => a?.total);
+    const parts = [movieAnalytics, tvAnalytics, podcastAnalytics, bookAnalytics].filter((a) => a?.total);
     const totalWatched = parts.reduce((sum, a) => sum + a.total, 0);
     const ratingSum = parts.reduce((sum, a) => sum + (a.avgRating || 0) * a.total, 0);
     return {
@@ -147,6 +151,7 @@ export default function AssistantModal({ isOpen, onClose }) {
         combinedMovies,
         combinedTV,
         combinedPodcasts,
+        combinedBooks,
         combinedAnalytics,
         priorHistory,
         { onToken }

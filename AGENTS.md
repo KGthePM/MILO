@@ -36,7 +36,7 @@ Cloud-mode work that touches the z.ai proxy needs `netlify dev` rather than `npm
 Mode is a **build-time** flag: `VITE_MILO_MODE=local` (default) | `cloud`.
 
 - `frontend/src/utils/mode.js` exports `IS_CLOUD` / `IS_LOCAL` from `import.meta.env.VITE_MILO_MODE`.
-- API clients (`movieApi.js`, `tvApi.js`, `podcastApi.js`, `assistantApi.js`, `tasteApi.js`, `feedbackApi.js`) are **switchers**: top-level `await import('./cloud')` if `IS_CLOUD`, else `./*.local.js` (relative `/api` fetches).
+- API clients (`movieApi.js`, `tvApi.js`, `podcastApi.js`, `bookApi.js`, `assistantApi.js`, `tasteApi.js`, `feedbackApi.js`) are **switchers**: top-level `await import('./cloud')` if `IS_CLOUD`, else `./*.local.js` (relative `/api` fetches).
 - `cloud.js` calls Supabase directly from the browser; `*.local.js` hit the Express backend via the Vite `/api` proxy (`vite.config.js`: `/api` → `http://localhost:3000`).
 - `friendsApi.js` / `FriendsContext.jsx` are **cloud-only** (profiles, friend requests, friends' libraries) — no `.local.js` variant.
 - In cloud mode the backend is entirely unused; AuthGate wraps the app with Supabase email/password auth **plus Sign in with Apple** (`utils/appleAuth.js`: native sheet via `@capgo/capacitor-social-login` → `signInWithIdToken`; web via `signInWithOAuth` redirect). Password reset: "Forgot password?" on the sign-in card → `resetPasswordForEmail` → recovery link lands on the public `/reset-password` route (`pages/ResetPasswordPage.jsx`).
@@ -45,11 +45,11 @@ Mode is a **build-time** flag: `VITE_MILO_MODE=local` (default) | `cloud`.
 
 `App.jsx` splits the tree in two:
 - `/landing` — public, rendered **outside** `AuthGate` (`pages/LandingPage.jsx`). On native it redirects to `/`, so marketing / Download / clone-the-repo CTAs are structurally unreachable inside the iOS app.
-- `/*` → `GatedApp` — wrapped in `AuthGate` and the three content providers (`MovieProvider` → `TVSeriesProvider` → `PodcastProvider`), with `MiloAssistantFab` rendered globally inside the gate.
+- `/*` → `GatedApp` — wrapped in `AuthGate` and the four content providers (`MovieProvider` → `TVSeriesProvider` → `PodcastProvider` → `BookProvider`), with `MiloAssistantFab` rendered globally inside the gate.
 
 Routes: `/` and `/movies` → `MoviesPage`, `/tv`, `/podcasts`, `/timeline`, `/settings`, plus `/friends` and `/friends/:friendId` which are **mounted only when `IS_CLOUD`**.
 
-Components live in feature subdirectories: `components/movies/`, `tv/`, `podcasts/`, `friends/`, `timeline/`, `settings/`, `recommendations/`, and `shared/`.
+Components live in feature subdirectories: `components/movies/`, `tv/`, `podcasts/`, `books/`, `friends/`, `timeline/`, `settings/`, `recommendations/`, and `shared/`.
 
 Only two files remain directly in `frontend/src/components/`: `AuthGate.jsx` (cloud-mode auth wrapper, used by `App.jsx`) and `LetterboxdImportModal.jsx` (used by `settings/DataSection.jsx`). Everything else lives in a feature subdirectory — put new components there rather than at the root.
 
@@ -57,13 +57,13 @@ Eight unreferenced files that used to sit at that root were deleted (`AddMovieMo
 
 **Sign-in backdrop**: `frontend/src/utils/neonHorizon.js` draws the synthwave grid + starfield on a `<canvas>` (wrapper: `components/shared/NeonHorizon.jsx`), used by `AuthGate`, `AppLockGate`, and the `/landing` hero. It is the app's only `requestAnimationFrame`/canvas code. It replaced a CSS perspective grid that iOS smeared into a colour wash — WebKit rasterises a 3D-transformed layer once into a fixed backing store and then lets the perspective magnify that bitmap, so the near hairlines were a stretched cache. **Do not reintroduce a CSS-3D-transformed fine-line texture.** The DPR cap of 2 and the 30fps native idle cap are deliberate (WKWebView main-thread starvation); lane density derives from viewport width so it survives rotation. `WARP_MS` is exported and shared with AuthGate's sign-in hand-off timer — don't fork the constant.
 
-**Design tokens**: `frontend/tailwind.config.js` defines the neon palette (`neon-cyan` `#00d4ff`, `neon-magenta` `#ff006e`, `neon-purple` `#8338ec`, `neon-yellow` `#ffbe0b`, `bg-primary/secondary/tertiary`) and matching `boxShadow` entries. `frontend/src/index.css` holds `.glass`, `.neon-text-{cyan,magenta,purple}`, `.gradient-hyphen`, and the gradient body background. `darkMode: 'class'` is set but the app is dark-only in practice.
+**Design tokens**: `frontend/tailwind.config.js` defines the neon palette (`neon-cyan` `#00d4ff`, `neon-magenta` `#ff006e`, `neon-purple` `#8338ec`, `neon-orange` `#ff7a18`, `neon-yellow` `#ffbe0b`, `bg-primary/secondary/tertiary`) and matching `boxShadow` entries. `frontend/src/index.css` holds `.glass`, `.neon-text-{cyan,magenta,purple,orange}`, `.gradient-hyphen`, and the gradient body background. `darkMode: 'class'` is set but the app is dark-only in practice.
 
 # Database — Local Mode (SQLite)
 
 Single `movies` table, created + auto-migrated on backend startup (`backend/database.js`).
 
-`movies` columns: `id, title, rating (REAL 1-10), genre, date_watched, notes, director, release_year, type ('movie'|'tv'|'podcast'), num_seasons, total_episodes, host, publisher, episodes_heard, artwork_url, status (default 'watched'), created_at`. The `type` column distinguishes the three content types in one table; the four podcast columns are nullable and unused by movies/TV. Podcasts reuse `status='watched'` / `'to_watch'` — only UI labels differ ("Listened" / "To Listen").
+`movies` columns: `id, title, rating (REAL 1-10), genre, date_watched, notes, director, release_year, type ('movie'|'tv'|'podcast'|'book'), num_seasons, total_episodes, host, publisher, episodes_heard, artwork_url, author, page_count, pages_read, status (default 'watched'), created_at`. The `type` column distinguishes the four content types in one table; the four podcast columns and three book columns (`author`, `page_count`, `pages_read`) are nullable and unused by other types. Books also reuse `publisher`, `artwork_url` (cover), and `release_year` (first published). Podcasts and books reuse `status='watched'` / `'to_watch'` — only UI labels differ ("Listened" / "To Listen", "Read" / "To Read").
 
 **Content-type registry**: `frontend/src/utils/contentTypes.js` — `CONTENT_TYPES`, `CONTENT_TYPE_KEYS`, and `ACCENT` (complete literal Tailwind class strings; Movies = cyan, TV = magenta, Podcasts = purple). Never interpolate Tailwind class names — the JIT extractor can't see dynamic strings.
 
@@ -71,7 +71,7 @@ Extra tables (also auto-created, idempotent):
 - `taste_profiles` — one row per `scope` (`'all'` = unified movies+TV+podcasts); persisted AI taste profile.
 - `rec_feedback` — per-user reaction to a recommendation; unique on `(normalized_title, content_type)`; feedback ∈ `interested|not_for_me|seen_it`.
 
-**Migration** (`migrateDatabase()`): detects missing columns / NOT NULL constraints and rebuilds via `movies_new` copy + rename; podcast columns go through a guarded additive `ALTER TABLE` path. `recoverTvTypes()` (rows with seasons/episodes but `type='movie'` → `'tv'`) skips rows with any podcast column set, so podcast rows survive startup.
+**Migration** (`migrateDatabase()`): detects missing columns / NOT NULL constraints and rebuilds via `movies_new` copy + rename; podcast and book columns go through a guarded additive `ALTER TABLE` path (`ensureAdditiveColumns`). `recoverTvTypes()` (rows with seasons/episodes but `type='movie'` → `'tv'`) skips rows with any podcast or book column set, so podcast and book rows survive startup.
 
 **`status` matters for AI**: assistant and recommender treat only `status='watched'` rows as context — watchlist items are excluded.
 
@@ -134,18 +134,20 @@ Providers called **directly from the browser** with user-supplied keys; keys liv
 
 - `server.js` — entry; loads `.env`, mounts `/api` routes, binds `0.0.0.0`.
 - `database.js` — SQLite conn, schema init, auto-migration.
-- `routes/index.js` — single ~960-line router: all CRUD + `/ollama/*`, `/recommendations`, `/assistant`, `/analytics`, import endpoints. `/api/movies` takes a `type` query param and serves all three content types; `/api/tv` is a TV-only legacy alias. There is deliberately **no** `/api/podcasts` — podcasts use `/api/movies?type=podcast`.
+- `routes/index.js` — single ~960-line router: all CRUD + `/ollama/*`, `/recommendations`, `/assistant`, `/analytics`, import endpoints. `/api/movies` takes a `type` query param and serves all four content types; `/api/tv` is a TV-only legacy alias. There is deliberately **no** `/api/podcasts` or `/api/books` — both use `/api/movies?type=…`.
 - `ollama-recommender.js` — recommendations + 24h cache.
 - `assistant.js` — chat assistant over Ollama (filters to `status='watched'`).
 - `taste-analyzer.js` — builds the persisted taste profile.
-- All three AI modules handle all three content types (movies, TV, podcasts).
+- All three AI modules handle all four content types (movies, TV, podcasts, books).
 - `db-importer.js` / `letterboxd-importer.js` — CSV/SQLite/Letterboxd import via `multer` uploads to `backend/uploads/`.
 
-Frontend state: `MovieContext.jsx`, `TVSeriesContext.jsx`, `PodcastContext.jsx`, `FriendsContext.jsx` (React Context, consumed via hooks).
+Frontend state: `MovieContext.jsx`, `TVSeriesContext.jsx`, `PodcastContext.jsx`, `BookContext.jsx`, `FriendsContext.jsx` (React Context, consumed via hooks).
 
 **Podcast lookup**: `frontend/src/api/podcastLookup.js` hits the iTunes Search API directly from the browser (CORS confirmed, `access-control-allow-origin: *`) for artwork + autofill; degrades to manual entry on failure. `release_year` is deliberately **not** autofilled — the iTunes `releaseDate` is the latest-episode date, not the show's debut.
 
-**Movie/TV lookup**: `frontend/src/api/tmdbLookup.js` queries TMDB directly from the browser (CORS-friendly; TMDB permits client-side keys) using `VITE_TMDB_TOKEN` (the v4 API Read Access Token). When the token is unset, `TMDB_ENABLED` is false and the Find box is not rendered. Picking a result fetches details (movies: director, genre, poster; TV: seasons, episodes, genre, poster) via `getMovieDetails` / `getTVDetails`, which never throw and fall back to title + year. TMDB genres are mapped onto MILO's fixed movie/TV genre list, and anything unmappable leaves the user's choice alone. Posters are saved to `artwork_url`. The UI for all three lookups is `components/shared/TitleSearch.jsx`, wrapped by `PodcastSearch`, `movies/MovieSearch`, and `tv/TVSeriesSearch`. TMDB's terms require attribution (the Credits block in `settings/DataSection.jsx`) and cover non-commercial use only; MILO is free, so this is fine.
+**Book metadata**: `frontend/src/api/bookLookup.js` queries Open Library (`https://openlibrary.org/search.json`) **directly from the browser**. It needs no key, is CORS-open, and needs no proxy. Covers come from `covers.openlibrary.org/b/id/{cover_i}-{S|L}.jpg`; always look covers up by cover ID, because ISBN/OLID cover lookups are rate-limited per IP. `first_publish_year` is the real debut, so unlike podcasts `release_year` **is** autofilled. Open Library `subject` lists are mapped onto `BOOK_GENRE_LIST` by ordered rules (`mapSubjectsToGenre`), and anything unmapped leaves the user's genre alone. Credited in the Credits block of `settings/DataSection.jsx`, which now always renders (the TMDB line inside it stays conditional).
+
+**Movie/TV lookup**: `frontend/src/api/tmdbLookup.js` queries TMDB directly from the browser (CORS-friendly; TMDB permits client-side keys) using `VITE_TMDB_TOKEN` (the v4 API Read Access Token). When the token is unset, `TMDB_ENABLED` is false and the Find box is not rendered. Picking a result fetches details (movies: director, genre, poster; TV: seasons, episodes, genre, poster) via `getMovieDetails` / `getTVDetails`, which never throw and fall back to title + year. TMDB genres are mapped onto MILO's fixed movie/TV genre list, and anything unmappable leaves the user's choice alone. Posters are saved to `artwork_url`. The UI for all four lookups is `components/shared/TitleSearch.jsx`, wrapped by `PodcastSearch`, `books/BookSearch`, `movies/MovieSearch`, and `tv/TVSeriesSearch`. TMDB's terms require attribution (the Credits block in `settings/DataSection.jsx`) and cover non-commercial use only; MILO is free, so this is fine.
 
 **Genres**: `frontend/src/utils/genreColors.js` splits `SCREEN_GENRE_COLORS` (film/TV) from `PODCAST_GENRE_COLORS` (iTunes `primaryGenreName` strings); `GenreFilter` takes a `genres` prop so each section filters its own list, and unknown genres fall back gracefully. Users can override colors per genre through `utils/userPrefs.js` — persisted at `milo.userPrefs.v1` in `localStorage`, with `subscribeUserPrefs()` notifying listeners and `getEffectiveGenreColors()` merging defaults with overrides.
 

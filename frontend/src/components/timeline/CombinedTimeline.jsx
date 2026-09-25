@@ -1,7 +1,8 @@
-import { Clock, Film, Tv, Mic } from 'lucide-react';
+import { Clock, Film, Tv, Mic, BookOpen } from 'lucide-react';
 import MovieCard from '../movies/MovieCard';
 import SeriesCard from '../tv/SeriesCard';
 import PodcastCard from '../podcasts/PodcastCard';
+import BookCard from '../books/BookCard';
 import { CONTENT_TYPES, ACCENT } from '../../utils/contentTypes';
 import TimelineGroupList, { dateValue, groupByDate } from './TimelineGroupList';
 
@@ -11,6 +12,7 @@ const RENDERERS = {
   movie: { icon: Film, badge: 'Movie', render: (item) => <MovieCard movie={item} /> },
   tv: { icon: Tv, badge: 'TV', render: (item) => <SeriesCard series={item} /> },
   podcast: { icon: Mic, badge: 'Podcast', render: (item) => <PodcastCard podcast={item} /> },
+  book: { icon: BookOpen, badge: 'Book', render: (item) => <BookCard book={item} /> },
 };
 
 /**

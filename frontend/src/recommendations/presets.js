@@ -10,7 +10,8 @@
 // for; EnhancedRecommendations.jsx only renders matching chips. Movies/TV keep
 // viewing-mood presets; podcasts get listening-genre presets, since podcast recs
 // are interest-driven ("true crime", "comedy") rather than occasion-driven
-// ("date night").
+// ("date night"). Books get reading-mood presets, including one (Screen to Page)
+// that leans on the unified taste profile to bridge from film/TV.
 //
 // IMPORTANT: the id→directive map is mirrored in backend/ollama-recommender.js
 // (PRESET_DIRECTIVES) because the CommonJS backend can't import this ESM module.
@@ -139,6 +140,55 @@ export const PRESETS = [
     emoji: '🌀',
     directive:
       'Right now I want a mind-bender — podcasts that upend how I see things: big ideas, strange frontiers, and perspective-shifting conversations that keep me thinking long after the episode ends.',
+  },
+  // ── Books — reading moods, plus a bridge from what they watch ────────────
+  {
+    id: 'page_turner',
+    contentTypes: ['book'],
+    label: 'Page-Turner',
+    emoji: '🔥',
+    directive:
+      'Right now I want a page-turner — propulsive, can\'t-put-it-down books with momentum, hooks at the end of every chapter, and a story that pulls me through in a few sittings.',
+  },
+  {
+    id: 'cozy_read',
+    contentTypes: ['book'],
+    label: 'Cozy Read',
+    emoji: '🛋️',
+    directive:
+      'Right now I want a cozy read — warm, gentle, comforting books with low stakes and a sense of place I want to curl up in. Nothing grim or exhausting.',
+  },
+  {
+    id: 'big_ideas',
+    contentTypes: ['book'],
+    label: 'Big Ideas',
+    emoji: '💡',
+    directive:
+      'Right now I want big ideas — nonfiction or fiction that changes how I see the world: sharp thinking, surprising arguments, and ideas I will keep turning over after the last page.',
+  },
+  {
+    id: 'short_reads',
+    contentTypes: ['book'],
+    label: 'Short Reads',
+    emoji: '📏',
+    directive:
+      'Right now I want short reads — books of roughly 250 pages or under, novellas and slim volumes that are complete and satisfying without a big time commitment.',
+  },
+  {
+    id: 'screen_to_page',
+    contentTypes: ['book'],
+    label: 'Screen to Page',
+    emoji: '🎬',
+    directive:
+      'Right now I want books connected to what I watch — the novels, memoirs, and source material behind films and shows that fit my taste, or books that scratch the same itch as my favorite screen stories.',
+  },
+  {
+    id: 'missed_classics',
+    contentTypes: ['book'],
+    label: 'Classics I Missed',
+    emoji: '🏛️',
+    directive:
+      'Right now I want a classic I have not read yet — an essential, enduring book that still feels alive today and fits my taste, not homework.',
   },
 ];
 

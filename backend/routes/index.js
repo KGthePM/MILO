@@ -138,7 +138,7 @@ router.get('/movies', (req, res) => {
 });
 
 router.post('/movies', (req, res) => {
-  const { title, rating, genre, date_watched, notes, director, release_year, type, num_seasons, total_episodes, status, host, publisher, episodes_heard, artwork_url } = req.body;
+  const { title, rating, genre, date_watched, notes, director, release_year, type, num_seasons, total_episodes, status, host, publisher, episodes_heard, artwork_url, author, page_count, pages_read } = req.body;
   const resolvedStatus = status || 'watched';
   const resolvedType = type || 'movie';
 
@@ -178,23 +178,23 @@ router.post('/movies', (req, res) => {
       }
 
       const query = `
-        INSERT INTO movies (title, rating, genre, date_watched, notes, director, release_year, type, num_seasons, total_episodes, status, host, publisher, episodes_heard, artwork_url)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO movies (title, rating, genre, date_watched, notes, director, release_year, type, num_seasons, total_episodes, status, host, publisher, episodes_heard, artwork_url, author, page_count, pages_read)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `;
 
-      db.run(query, [title, ratingValue, genre, date_watched, notes, director, release_year, resolvedType, num_seasons, total_episodes, resolvedStatus, host, publisher, episodes_heard, artwork_url], function(err) {
+      db.run(query, [title, ratingValue, genre, date_watched, notes, director, release_year, resolvedType, num_seasons, total_episodes, resolvedStatus, host, publisher, episodes_heard, artwork_url, author, page_count, pages_read], function(err) {
         if (err) {
           res.status(500).json({ error: err.message });
           return;
         }
-        res.status(201).json({ id: this.lastID, title, rating: ratingValue, genre, date_watched, notes, director, release_year, type: resolvedType, num_seasons, total_episodes, status: resolvedStatus, host, publisher, episodes_heard, artwork_url });
+        res.status(201).json({ id: this.lastID, title, rating: ratingValue, genre, date_watched, notes, director, release_year, type: resolvedType, num_seasons, total_episodes, status: resolvedStatus, host, publisher, episodes_heard, artwork_url, author, page_count, pages_read });
       });
     }
   );
 });
 
 router.put('/movies/:id', (req, res) => {
-  const { title, rating, genre, date_watched, notes, director, release_year, type, num_seasons, total_episodes, status, host, publisher, episodes_heard, artwork_url } = req.body;
+  const { title, rating, genre, date_watched, notes, director, release_year, type, num_seasons, total_episodes, status, host, publisher, episodes_heard, artwork_url, author, page_count, pages_read } = req.body;
   const { id } = req.params;
   const resolvedStatus = status || 'watched';
 
@@ -217,11 +217,11 @@ router.put('/movies/:id', (req, res) => {
 
   const query = `
     UPDATE movies
-    SET title = ?, rating = ?, genre = ?, date_watched = ?, notes = ?, director = ?, release_year = ?, type = ?, num_seasons = ?, total_episodes = ?, status = ?, host = ?, publisher = ?, episodes_heard = ?, artwork_url = ?
+    SET title = ?, rating = ?, genre = ?, date_watched = ?, notes = ?, director = ?, release_year = ?, type = ?, num_seasons = ?, total_episodes = ?, status = ?, host = ?, publisher = ?, episodes_heard = ?, artwork_url = ?, author = ?, page_count = ?, pages_read = ?
     WHERE id = ?
   `;
 
-  db.run(query, [title, ratingValue, genre, date_watched, notes, director, release_year, type || 'movie', num_seasons, total_episodes, resolvedStatus, host, publisher, episodes_heard, artwork_url, id], function(err) {
+  db.run(query, [title, ratingValue, genre, date_watched, notes, director, release_year, type || 'movie', num_seasons, total_episodes, resolvedStatus, host, publisher, episodes_heard, artwork_url, author, page_count, pages_read, id], function(err) {
     if (err) {
       res.status(500).json({ error: err.message });
       return;
@@ -230,7 +230,7 @@ router.put('/movies/:id', (req, res) => {
       res.status(404).json({ error: 'Movie not found' });
       return;
     }
-    res.json({ id, title, rating: ratingValue, genre, date_watched, notes, director, release_year, type: type || 'movie', num_seasons, total_episodes, status: resolvedStatus, host, publisher, episodes_heard, artwork_url });
+    res.json({ id, title, rating: ratingValue, genre, date_watched, notes, director, release_year, type: type || 'movie', num_seasons, total_episodes, status: resolvedStatus, host, publisher, episodes_heard, artwork_url, author, page_count, pages_read });
   });
 });
 
@@ -461,7 +461,7 @@ router.get('/recommendations', async (req, res) => {
   const shouldRefresh = refresh === 'true';
 
   try {
-    const contentTypes = content === 'all' ? ['movie', 'tv', 'podcast'] : [content];
+    const contentTypes = content === 'all' ? ['movie', 'tv', 'podcast', 'book'] : [content];
     const recommendationTypes = type === 'all' ? ['similar', 'hidden_gems'] : [type];
 
     const query = `SELECT * FROM movies WHERE type IN (${contentTypes.map(() => '?').join(',')}) AND status = 'watched'`;
@@ -530,9 +530,9 @@ router.get('/recommendations', async (req, res) => {
     } else {
       const fallbackRecommendations = content === 'tv'
         ? generateTVRecommendationsFallback(userMovies)
-        : content === 'podcast'
-        // No canned podcast list — the `simple` source below carries the real
-        // error, which is more useful than a hardcoded guess.
+        : content === 'podcast' || content === 'book'
+        // No canned podcast/book list — the `simple` source below carries the
+        // real error, which is more useful than a hardcoded guess.
         ? []
         : generateRecommendationsFallback(userMovies);
 
@@ -585,13 +585,14 @@ function rowToProfileResponse(row, currentSignature) {
 
 router.get('/taste-profile', async (req, res) => {
   try {
-    const [movies, tvSeries, podcasts, row] = await Promise.all([
+    const [movies, tvSeries, podcasts, books, row] = await Promise.all([
       fetchWatched('movie'),
       fetchWatched('tv'),
       fetchWatched('podcast'),
+      fetchWatched('book'),
       readTasteProfile('all'),
     ]);
-    const currentSignature = tasteAnalyzer.profileSignature(movies, tvSeries, podcasts);
+    const currentSignature = tasteAnalyzer.profileSignature(movies, tvSeries, podcasts, books);
     res.json(rowToProfileResponse(row, currentSignature));
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -601,17 +602,18 @@ router.get('/taste-profile', async (req, res) => {
 router.post('/taste-profile', async (req, res) => {
   const { model } = req.body || {};
   try {
-    const [movies, tvSeries, podcasts] = await Promise.all([
+    const [movies, tvSeries, podcasts, books] = await Promise.all([
       fetchWatched('movie'),
       fetchWatched('tv'),
       fetchWatched('podcast'),
+      fetchWatched('book'),
     ]);
-    if (movies.length === 0 && tvSeries.length === 0 && podcasts.length === 0) {
+    if (movies.length === 0 && tvSeries.length === 0 && podcasts.length === 0 && books.length === 0) {
       return res.status(400).json({ error: 'Add some watched titles before analyzing your taste.' });
     }
 
     const { profile, model: usedModel, signature } =
-      await tasteAnalyzer.generateTasteProfile(movies, tvSeries, podcasts, model);
+      await tasteAnalyzer.generateTasteProfile(movies, tvSeries, podcasts, books, model);
 
     await new Promise((resolve, reject) => {
       db.run(
@@ -636,7 +638,7 @@ router.post('/taste-profile', async (req, res) => {
 });
 
 router.post('/assistant/chat', async (req, res) => {
-  const { message, model, movies, tvSeries, podcasts, analytics, history } = req.body;
+  const { message, model, movies, tvSeries, podcasts, books, analytics, history } = req.body;
 
   if (!message || !message.trim()) {
     return res.status(400).json({ error: 'Message is required' });
@@ -648,7 +650,7 @@ router.post('/assistant/chat', async (req, res) => {
     if (tasteRow) {
       try { tasteProfile = JSON.parse(tasteRow.profile_json); } catch { tasteProfile = null; }
     }
-    const result = await assistant.generateResponse(message, movies || [], tvSeries || [], podcasts || [], analytics || null, model, history || [], tasteProfile);
+    const result = await assistant.generateResponse(message, movies || [], tvSeries || [], podcasts || [], books || [], analytics || null, model, history || [], tasteProfile);
     res.json(result);
   } catch (error) {
     console.error('MILO assistant error:', error.message);
@@ -681,6 +683,8 @@ router.get('/analytics', (req, res) => {
       ? generateTVRecommendations(genreData)
       : type === 'podcast'
       ? generatePodcastRecommendations(genreData)
+      : type === 'book'
+      ? generateBookRecommendations(genreData)
       : generateRecommendations(genreData);
 
     res.json({
@@ -777,6 +781,20 @@ function generatePodcastRecommendations(genreData) {
     favoriteGenre: topGenre,
     suggestions: podcastGenreBasedRecommendations[topGenre] || 'Explore different genres to get recommendations!',
     message: `Based on your love for ${topGenre} podcasts, you might enjoy:`
+  };
+}
+
+// Deliberately generic — no canned title lists for books. The AI recs tab is
+// where real book suggestions come from.
+function generateBookRecommendations(genreData) {
+  if (!genreData || genreData.length === 0) {
+    return { message: 'Add more books to get personalized recommendations!' };
+  }
+  const topGenre = genreData[0].genre;
+  return {
+    favoriteGenre: topGenre,
+    suggestions: `Explore more ${topGenre} — your favorite so far.`,
+    message: `Based on your love for ${topGenre} books:`
   };
 }
 

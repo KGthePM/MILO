@@ -252,7 +252,7 @@ function CloudAuthGate({ children }) {
           {/* What MILO actually covers — the one thing the sign-in screen never
               said out loud. Built from the registry, with ACCENT class strings
               kept literal so Tailwind's extractor can see them. */}
-          <div className="flex items-center justify-center gap-2 mb-5">
+          <div className="flex flex-wrap items-center justify-center gap-2 mb-5">
             {CONTENT_TYPE_KEYS.map((key, i) => {
               const { nav, accent } = CONTENT_TYPES[key];
               const Icon = TYPE_ICONS[key];
@@ -270,8 +270,8 @@ function CloudAuthGate({ children }) {
             })}
           </div>
           <p className="text-white/70 mb-6 text-sm text-center">
-            {mode === 'signin' && 'Sign in to your movie, TV & podcast tracker.'}
-            {mode === 'signup' && 'Create your account — track movies, TV & podcasts.'}
+            {mode === 'signin' && 'Sign in to your movie, TV, podcast & book tracker.'}
+            {mode === 'signup' && 'Create your account — track movies, TV, podcasts & books.'}
             {mode === 'forgot' && 'Enter your email and we\u2019ll send a reset link.'}
           </p>
           <form onSubmit={submit} className="space-y-4">

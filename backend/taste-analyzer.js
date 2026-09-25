@@ -8,17 +8,17 @@ const {
   callOllama,
 } = require('./ollama-recommender');
 
-// Signature over the whole watched library (movies + TV + podcasts) so the UI
+// Signature over the whole watched library (movies + TV + podcasts + books) so the UI
 // can flag a profile as stale when the library changes — including rating/status
 // edits, not just adds/removes. Mirrors profileSignature in frontend/src/api/cloud.js.
-function profileSignature(movies = [], tvSeries = [], podcasts = []) {
-  const all = [...movies, ...tvSeries, ...podcasts];
+function profileSignature(movies = [], tvSeries = [], podcasts = [], books = []) {
+  const all = [...movies, ...tvSeries, ...podcasts, ...books];
   if (all.length === 0) return '0:';
   return `${all.length}:${hashLibrary(all)}`;
 }
 
 // Compile a distilled, structured taste profile from the full library via Ollama.
-async function generateTasteProfile(movies = [], tvSeries = [], podcasts = [], model) {
+async function generateTasteProfile(movies = [], tvSeries = [], podcasts = [], books = [], model) {
   const resolvedModel = model || process.env.OLLAMA_MODEL;
   if (!resolvedModel) {
     throw new Error('No model specified. Pick one from the dropdown.');
@@ -28,6 +28,7 @@ async function generateTasteProfile(movies = [], tvSeries = [], podcasts = [], m
   if (movies.length) parts.push(buildLibraryDigest(movies, 'movies'));
   if (tvSeries.length) parts.push(buildLibraryDigest(tvSeries, 'TV series'));
   if (podcasts.length) parts.push(buildLibraryDigest(podcasts, 'podcasts'));
+  if (books.length) parts.push(buildLibraryDigest(books, 'books'));
   const digest = parts.join('\n\n') || 'My library is currently empty.';
 
   // Name only the media actually present, so the model isn't asked to compare
@@ -36,8 +37,9 @@ async function generateTasteProfile(movies = [], tvSeries = [], podcasts = [], m
     movies.length && 'movies',
     tvSeries.length && 'TV',
     podcasts.length && 'podcasts',
+    books.length && 'books',
   ].filter(Boolean);
-  const contentLabel = present.length ? present.join(' & ') : 'movies, TV & podcasts';
+  const contentLabel = present.length ? present.join(' & ') : 'movies, TV, podcasts & books';
 
   const { systemPrompt, userPrompt } = buildTasteAnalysisPrompt(digest, contentLabel);
   // Taste analysis is a longer free-form JSON than a rec list; give it room and
@@ -48,7 +50,7 @@ async function generateTasteProfile(movies = [], tvSeries = [], podcasts = [], m
     const snippet = String(response || '').trim().slice(0, 200);
     throw new Error(`Ollama did not return a valid taste profile: ${snippet || '(empty response)'}`);
   }
-  return { profile, model: resolvedModel, signature: profileSignature(movies, tvSeries, podcasts) };
+  return { profile, model: resolvedModel, signature: profileSignature(movies, tvSeries, podcasts, books) };
 }
 
 module.exports = { generateTasteProfile, profileSignature };

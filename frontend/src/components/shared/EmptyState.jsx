@@ -34,6 +34,11 @@ const COPY = {
       body: 'Add the first show and MILO starts tuning what it suggests.',
       action: 'Add a podcast',
     },
+    book: {
+      title: 'The shelf is bare',
+      body: 'Add the first book and MILO starts reading your taste.',
+      action: 'Add a book',
+    },
   },
   watchlist: {
     movie: {
@@ -50,6 +55,11 @@ const COPY = {
       title: 'Listen list standing by',
       body: "Queue up a show you've been meaning to try.",
       action: 'Add to listen list',
+    },
+    book: {
+      title: 'Nightstand stack standing by',
+      body: "Queue up a book you've been meaning to crack open.",
+      action: 'Add to read list',
     },
   },
 };
@@ -72,11 +82,11 @@ function GhostCards({ ring }) {
 
 /**
  * @param {object}   props
- * @param {string}   props.contentType  'movie' | 'tv' | 'podcast'
+ * @param {string}   props.contentType  'movie' | 'tv' | 'podcast' | 'book'
  * @param {string}   props.variant      'library' | 'watchlist' | 'filtered'
  * @param {function} [props.onAction]   add handler (library/watchlist)
  * @param {function} [props.onClear]    clear-filters handler (filtered)
- * @param {string}   [props.accent]     override the accent ('cyan'|'magenta'|'purple')
+ * @param {string}   [props.accent]     override the accent ('cyan'|'magenta'|'purple'|'orange')
  * @param {object}   [props.icon]       override the icon component
  * @param {string}   [props.title]      override the headline
  * @param {string}   [props.body]       override the sub-line

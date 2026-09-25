@@ -9,28 +9,32 @@ import { normalizeTitle } from '../../ai/prompt';
 import { useMovies } from '../../utils/MovieContext';
 import { useTVSeries } from '../../utils/TVSeriesContext';
 import { usePodcasts } from '../../utils/PodcastContext';
+import { useBooks } from '../../utils/BookContext';
 import { IS_CLOUD } from '../../utils/mode';
 import { loadAISettings, getActiveKey } from '../../utils/aiSettings';
 import { PRESETS } from '../../recommendations/presets';
 import { getContentType, accentFor } from '../../utils/contentTypes';
 import { podcastApi } from '../../api/podcastApi';
+import { bookApi } from '../../api/bookApi';
 import { lookupRecArtwork } from '../../api/artworkLookup';
 import CoverArt from '../shared/CoverArt';
 import AddMovieModal from '../movies/AddMovieModal';
 import AddTVSeriesModal from '../tv/AddTVSeriesModal';
 import AddPodcastModal from '../podcasts/AddPodcastModal';
+import AddBookModal from '../books/AddBookModal';
 import AIProvidersHelpModal from '../settings/AIProvidersHelpModal';
 
 // Per-content-type wiring. These replace the `contentType === 'tv' ? … : …`
 // ternaries that used to run through this file, which silently treated any
 // third type as a movie.
-const API_BY_TYPE = { movie: movieApi, tv: tvApi, podcast: podcastApi };
+const API_BY_TYPE = { movie: movieApi, tv: tvApi, podcast: podcastApi, book: bookApi };
 const ADD_BY_TYPE = {
   movie: (payload) => movieApi.addMovie(payload),
   tv: (payload) => tvApi.addSeries(payload),
   podcast: (payload) => podcastApi.addPodcast(payload),
+  book: (payload) => bookApi.addBook(payload),
 };
-const SEEN_IT_MODALS = { movie: AddMovieModal, tv: AddTVSeriesModal, podcast: AddPodcastModal };
+const SEEN_IT_MODALS = { movie: AddMovieModal, tv: AddTVSeriesModal, podcast: AddPodcastModal, book: AddBookModal };
 
 function formatWhen(ts) {
   if (!ts) return '';
@@ -100,15 +104,17 @@ export default function EnhancedRecommendations({ contentType = 'movie' }) {
   const { fetchMovies, deleteMovie } = useMovies();
   const { fetchSeries, deleteSeries } = useTVSeries();
   const { fetchPodcasts, deletePodcast } = usePodcasts();
+  const { fetchBooks, deleteBook } = useBooks();
 
   // Context-bound counterparts to the module-level maps above.
-  const REMOVE_BY_TYPE = { movie: deleteMovie, tv: deleteSeries, podcast: deletePodcast };
-  const REFRESH_BY_TYPE = { movie: fetchMovies, tv: fetchSeries, podcast: fetchPodcasts };
+  const REMOVE_BY_TYPE = { movie: deleteMovie, tv: deleteSeries, podcast: deletePodcast, book: deleteBook };
+  const REFRESH_BY_TYPE = { movie: fetchMovies, tv: fetchSeries, podcast: fetchPodcasts, book: fetchBooks };
 
   const contentLabel = getContentType(contentType).nav;
   const A = accentFor(contentType);
   // Quick Hitters are scoped per content type (movies/TV keep viewing moods,
-  // podcasts get listening genres) — only render the chips that apply here.
+  // podcasts get listening genres, books get reading moods) — only render the
+  // chips that apply here.
   const visiblePresets = PRESETS.filter((p) => p.contentTypes.includes(contentType));
 
   const loadModels = async () => {

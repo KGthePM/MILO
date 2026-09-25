@@ -1,21 +1,23 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Film, Tv, Mic, LayoutGrid } from 'lucide-react';
+import { LayoutGrid } from 'lucide-react';
 import { useMovies } from '../utils/MovieContext';
 import { useTVSeries } from '../utils/TVSeriesContext';
 import { usePodcasts } from '../utils/PodcastContext';
+import { useBooks } from '../utils/BookContext';
 import CombinedTimeline from '../components/timeline/CombinedTimeline';
 import FloatingCommandBar from '../components/shared/FloatingCommandBar';
-import { CONTENT_TYPES } from '../utils/contentTypes';
-
-const FILTER_ICONS = { movie: Film, tv: Tv, podcast: Mic };
+import { CONTENT_TYPES, TYPE_ICONS } from '../utils/contentTypes';
 
 const FILTERS = [
   { id: 'all', label: 'All', icon: LayoutGrid },
   ...Object.values(CONTENT_TYPES).map((ct) => ({
     id: ct.key,
     label: ct.nav,
-    icon: FILTER_ICONS[ct.key],
+    icon: TYPE_ICONS[ct.key],
+    // Five filters can't fit their labels across a phone; types go icon-only
+    // below sm (the icons match the bottom nav), "All" keeps its word.
+    iconOnlyOnPhone: true,
   })),
 ];
 
@@ -25,12 +27,14 @@ export default function TimelinePage() {
   const { movies } = useMovies();
   const { series } = useTVSeries();
   const { podcasts } = usePodcasts();
+  const { books } = useBooks();
   const [filter, setFilter] = useState('all');
 
   const byType = {
     movie: watchedOnly(movies),
     tv: watchedOnly(series),
     podcast: watchedOnly(podcasts),
+    book: watchedOnly(books),
   };
 
   // 'all' shows every type; any other filter narrows to that one type.
@@ -49,7 +53,7 @@ export default function TimelinePage() {
               <span className="neon-text-cyan">Time</span>
               <span className="neon-text-magenta">line</span>
               <span className="text-sm md:text-base text-white/40 font-light ml-4">
-                Everything you've watched and heard, together
+                Everything you've watched, heard, and read, together
               </span>
             </h1>
             <p className="text-white/60">Your complete history on one timeline</p>
@@ -63,10 +67,12 @@ export default function TimelinePage() {
             hugging its content. */}
         <motion.div className="mb-6 sm:mb-8 p-1 glass rounded-xl flex w-full sm:inline-flex sm:w-auto">
           <div className="flex w-full gap-1 sm:w-auto sm:gap-2">
-            {FILTERS.map(({ id, label, icon: Icon }) => (
+            {FILTERS.map(({ id, label, icon: Icon, iconOnlyOnPhone }) => (
               <button
                 key={id}
                 onClick={() => setFilter(id)}
+                title={label}
+                aria-label={label}
                 className={`flex min-w-0 flex-1 items-center justify-center gap-1.5 rounded-lg px-2 py-2 text-sm font-medium transition-all sm:flex-none sm:gap-2 sm:px-6 sm:py-3 sm:text-base ${
                   filter === id
                     ? 'bg-gradient-to-r from-neon-cyan/20 to-neon-magenta/20 text-white neon-border-magenta'
@@ -74,7 +80,7 @@ export default function TimelinePage() {
                 }`}
               >
                 <Icon size={16} className="flex-shrink-0" />
-                <span className="truncate">{label}</span>
+                <span className={iconOnlyOnPhone ? 'hidden sm:inline truncate' : 'truncate'}>{label}</span>
               </button>
             ))}
           </div>

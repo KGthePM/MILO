@@ -40,7 +40,7 @@ function SkeletonCard({ ring, thumbSize, delay }) {
 
 /**
  * @param {object} props
- * @param {string} props.contentType  'movie' | 'tv' | 'podcast' — drives the accent
+ * @param {string} props.contentType  'movie' | 'tv' | 'podcast' | 'book' — drives the accent
  * @param {number} [props.count]      cards to render
  */
 export default function SkeletonGrid({ contentType = 'movie', count = 6 }) {

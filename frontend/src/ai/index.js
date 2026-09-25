@@ -86,6 +86,7 @@ export async function generateTasteProfile({
   movies = [],
   tvSeries = [],
   podcasts = [],
+  books = [],
   feedback = null,
   feedbackRows = [],
   priorProfile = null,
@@ -96,6 +97,7 @@ export async function generateTasteProfile({
   if (movies.length) parts.push(buildLibraryDigest(movies, 'movies'));
   if (tvSeries.length) parts.push(buildLibraryDigest(tvSeries, 'TV series'));
   if (podcasts.length) parts.push(buildLibraryDigest(podcasts, 'podcasts'));
+  if (books.length) parts.push(buildLibraryDigest(books, 'books'));
   // Reactions to past AI recommendations are taste signal too. Raw rows carry
   // age + wildcard tags so the analyst can infer WHY, not just what; the
   // grouped-title fallback keeps older callers working.
@@ -119,8 +121,9 @@ export async function generateTasteProfile({
     movies.length && 'movies',
     tvSeries.length && 'TV',
     podcasts.length && 'podcasts',
+    books.length && 'books',
   ].filter(Boolean);
-  const contentLabel = present.length ? present.join(' & ') : 'movies, TV & podcasts';
+  const contentLabel = present.length ? present.join(' & ') : 'movies, TV, podcasts & books';
   const { systemPrompt, userPrompt } = buildTasteAnalysisPrompt(digest, contentLabel, { priorProfile });
   const provider = getProvider(settings.provider);
   if (typeof provider.chat !== 'function') {
@@ -147,6 +150,7 @@ export async function chatAssistant({
   movies = [],
   tvSeries = [],
   podcasts = [],
+  books = [],
   analytics = null,
   history = [],
   tasteProfile = null,
@@ -156,7 +160,7 @@ export async function chatAssistant({
   // stream. Never called for the rest — their reply lands in one piece.
   onToken = null,
 } = {}) {
-  const { systemPrompt, userPrompt } = buildAssistantPrompt(message, movies, tvSeries, podcasts, analytics, history, tasteProfile);
+  const { systemPrompt, userPrompt } = buildAssistantPrompt(message, movies, tvSeries, podcasts, books, analytics, history, tasteProfile);
   const provider = getProvider(settings.provider);
   const response = await provider.chatAssistant({
     systemPrompt,

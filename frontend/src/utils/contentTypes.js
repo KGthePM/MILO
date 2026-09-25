@@ -1,4 +1,4 @@
-import { Film, Tv, Mic } from 'lucide-react';
+import { Film, Tv, Mic, BookOpen } from 'lucide-react';
 
 // Single source of truth for MILO's content types.
 //
@@ -43,6 +43,17 @@ export const CONTENT_TYPES = {
     verb: 'Listened',
     verbTo: 'To Listen',
   },
+  book: {
+    key: 'book',
+    accent: 'orange',
+    nav: 'Books',
+    plural: 'books',
+    singular: 'book',
+    promptLabel: 'books',
+    path: '/books',
+    verb: 'Read',
+    verbTo: 'To Read',
+  },
 };
 
 export const CONTENT_TYPE_KEYS = Object.keys(CONTENT_TYPES);
@@ -50,7 +61,7 @@ export const CONTENT_TYPE_KEYS = Object.keys(CONTENT_TYPES);
 // Lucide icon per content type. Lives here rather than being re-declared at
 // each call site so adding a type surfaces one gap instead of several silent
 // fallbacks — the same reason the rest of this registry exists.
-export const TYPE_ICONS = { movie: Film, tv: Tv, podcast: Mic };
+export const TYPE_ICONS = { movie: Film, tv: Tv, podcast: Mic, book: BookOpen };
 
 export const iconFor = (contentType) => TYPE_ICONS[getContentType(contentType).key];
 
@@ -133,6 +144,30 @@ export const ACCENT = {
     tileSoft: 'bg-neon-purple/10',
     iconSoft: 'text-neon-purple/70',
     edgeSoft: 'border-neon-purple/30',
+  },
+  orange: {
+    text: 'text-neon-orange',
+    bgSoft: 'bg-neon-orange/20',
+    bgHover: 'hover:bg-neon-orange/30',
+    border: 'neon-border-orange',
+    glow: 'neon-text-orange',
+    ring: 'border-neon-orange/60',
+    ringSoft: 'border-neon-orange/40',
+    spinner: 'border-neon-orange',
+    grad: 'from-neon-orange to-neon-magenta',
+    gradSoft: 'from-neon-orange/20 to-neon-magenta/20',
+    gradVia: 'from-neon-orange via-neon-magenta to-neon-orange',
+    fade: 'from-transparent via-neon-orange/50 to-transparent',
+    hoverText: 'hover:text-neon-orange',
+    btnPrimary: 'bg-neon-orange/20 border-neon-orange/40 hover:bg-neon-orange/30 hover:border-neon-orange/70',
+    btnSmall: 'bg-neon-orange/15 border-neon-orange/30 hover:bg-neon-orange/25 hover:border-neon-orange/60',
+    chipActive: 'bg-neon-orange/25 border-neon-orange/60',
+    fbActive: 'bg-neon-orange/20 border-neon-orange/40',
+    barGrad: 'from-neon-orange to-neon-magenta',
+    rowHover: 'hover:bg-neon-orange/15',
+    tileSoft: 'bg-neon-orange/10',
+    iconSoft: 'text-neon-orange/70',
+    edgeSoft: 'border-neon-orange/30',
   },
 };
 

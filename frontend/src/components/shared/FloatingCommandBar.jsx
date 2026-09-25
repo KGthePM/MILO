@@ -1,10 +1,10 @@
 import { useEffect, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Film, Tv, Mic, Clock, Plus, RefreshCw, Settings as SettingsIcon, LogIn, LogOut, Users } from 'lucide-react';
+import { Clock, Plus, RefreshCw, Settings as SettingsIcon, LogIn, LogOut, Users } from 'lucide-react';
 import { IS_CLOUD } from '../../utils/mode';
 import { getSupabase } from '../../utils/supabase';
-import { CONTENT_TYPES, ACCENT, getContentType } from '../../utils/contentTypes';
+import { CONTENT_TYPES, ACCENT, TYPE_ICONS, getContentType } from '../../utils/contentTypes';
 import ConfirmDialog from './ConfirmDialog';
 
 // Full literal class strings — Tailwind cannot see interpolated names.
@@ -15,8 +15,6 @@ const ICON_BTN_ACCENT = {
   red: 'text-red-400 hover:text-white hover:bg-red-500/20',
   white: 'text-white/70 hover:text-white hover:bg-white/10',
 };
-
-const NAV_ICONS = { movie: Film, tv: Tv, podcast: Mic };
 
 function Divider() {
   return <div className="w-px h-8 bg-white/10 mx-0.5 lg:mx-1 shrink-0" />;
@@ -105,7 +103,7 @@ export default function FloatingCommandBar({ page, onAdd, onRefresh }) {
       >
         {/* Page toggle — one entry per content type */}
         {Object.values(CONTENT_TYPES).map((ct) => {
-          const Icon = NAV_ICONS[ct.key];
+          const Icon = TYPE_ICONS[ct.key];
           const active = isActivePath(ct.key);
           const ctAccent = ACCENT[ct.accent];
           return (
@@ -153,8 +151,12 @@ export default function FloatingCommandBar({ page, onAdd, onRefresh }) {
           </motion.button>
         )}
 
-        {/* Refresh */}
+        {/* Refresh — lg and up only. With four content tabs the phone bar's
+            shrink-0 content outgrew a 393px iPhone; Refresh is the one control
+            that can go, since every page's context already refetches on mount
+            and after each add/edit/delete. */}
         {onRefresh && (
+          <div className="hidden lg:flex">
           <IconBtn
             onClick={onRefresh}
             title="Refresh"
@@ -162,6 +164,7 @@ export default function FloatingCommandBar({ page, onAdd, onRefresh }) {
           >
             <RefreshCw size={20} />
           </IconBtn>
+          </div>
         )}
 
         <Divider />

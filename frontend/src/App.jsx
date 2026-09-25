@@ -2,6 +2,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import MoviesPage from './pages/MoviesPage';
 import TVSeriesPage from './pages/TVSeriesPage';
 import PodcastsPage from './pages/PodcastsPage';
+import BooksPage from './pages/BooksPage';
 import TimelinePage from './pages/TimelinePage';
 import LandingPage from './pages/LandingPage';
 import SettingsPage from './pages/SettingsPage';
@@ -15,6 +16,7 @@ import ScrollToTop from './components/shared/ScrollToTop';
 import { MovieProvider } from './utils/MovieContext';
 import { TVSeriesProvider } from './utils/TVSeriesContext';
 import { PodcastProvider } from './utils/PodcastContext';
+import { BookProvider } from './utils/BookContext';
 import { IS_CLOUD } from './utils/mode';
 import { IS_NATIVE } from './utils/native';
 
@@ -50,17 +52,20 @@ function GatedApp() {
         <MovieProvider>
         <TVSeriesProvider>
           <PodcastProvider>
-            <Routes>
-              <Route path="/" element={<MoviesPage />} />
-              <Route path="/movies" element={<MoviesPage />} />
-              <Route path="/tv" element={<TVSeriesPage />} />
-              <Route path="/podcasts" element={<PodcastsPage />} />
-              <Route path="/timeline" element={<TimelinePage />} />
-              <Route path="/settings" element={<SettingsPage />} />
-              {IS_CLOUD && <Route path="/friends" element={<FriendsPage />} />}
-              {IS_CLOUD && <Route path="/friends/:friendId" element={<FriendProfilePage />} />}
-            </Routes>
-            <MiloAssistantFab />
+          <BookProvider>
+              <Routes>
+                <Route path="/" element={<MoviesPage />} />
+                <Route path="/movies" element={<MoviesPage />} />
+                <Route path="/tv" element={<TVSeriesPage />} />
+                <Route path="/podcasts" element={<PodcastsPage />} />
+                <Route path="/books" element={<BooksPage />} />
+                <Route path="/timeline" element={<TimelinePage />} />
+                <Route path="/settings" element={<SettingsPage />} />
+                {IS_CLOUD && <Route path="/friends" element={<FriendsPage />} />}
+                {IS_CLOUD && <Route path="/friends/:friendId" element={<FriendProfilePage />} />}
+              </Routes>
+              <MiloAssistantFab />
+          </BookProvider>
           </PodcastProvider>
         </TVSeriesProvider>
       </MovieProvider>

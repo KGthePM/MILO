@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Upload, Database, Download, LogOut, LogIn, Film, Tv, Mic, Trash2, AlertTriangle } from 'lucide-react';
+import { Upload, Database, Download, LogOut, LogIn, Film, Tv, Mic, BookOpen, Trash2, AlertTriangle } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import LetterboxdImportModal from '../LetterboxdImportModal';
 import { useMovies } from '../../utils/MovieContext';
@@ -8,6 +8,7 @@ import { getSupabase } from '../../utils/supabase';
 import { api as movieApi } from '../../api/movieApi';
 import { tvApi } from '../../api/tvApi';
 import { podcastApi } from '../../api/podcastApi';
+import { bookApi } from '../../api/bookApi';
 import { TMDB_ENABLED } from '../../api/tmdbLookup';
 import tmdbLogo from '../../assets/tmdb-logo.svg';
 
@@ -17,6 +18,7 @@ const EXPORT_COLUMNS = {
   movies: [...BASE_EXPORT_COLUMNS, 'director', 'release_year'],
   tv: [...BASE_EXPORT_COLUMNS, 'num_seasons', 'total_episodes'],
   podcasts: [...BASE_EXPORT_COLUMNS, 'host', 'publisher', 'episodes_heard'],
+  books: [...BASE_EXPORT_COLUMNS, 'author', 'release_year', 'pages_read', 'page_count'],
 };
 
 function escapeCsvValue(value) {
@@ -53,7 +55,7 @@ function todayStamp() {
 export default function DataSection({ session, onSignOut }) {
   const [isImportOpen, setIsImportOpen] = useState(false);
   const [exportError, setExportError] = useState('');
-  const [exporting, setExporting] = useState(null); // 'movies' | 'tv' | 'podcasts' | null
+  const [exporting, setExporting] = useState(null); // 'movies' | 'tv' | 'podcasts' | 'books' | null
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [deletePhrase, setDeletePhrase] = useState('');
   const [deleting, setDeleting] = useState(false);
@@ -68,7 +70,9 @@ export default function DataSection({ session, onSignOut }) {
         ? await movieApi.getMovies({ type: 'movie' })
         : kind === 'tv'
         ? await tvApi.getSeries()
-        : await podcastApi.getPodcasts();
+        : kind === 'podcasts'
+        ? await podcastApi.getPodcasts()
+        : await bookApi.getBooks();
       const csv = rowsToCsv(rows || [], EXPORT_COLUMNS[kind]);
       triggerDownload(`milo-${kind}-${todayStamp()}.csv`, csv);
     } catch (err) {
@@ -128,7 +132,7 @@ export default function DataSection({ session, onSignOut }) {
         <p className="text-white/60 text-sm mb-4">
           Download your library as CSV. Opens in any spreadsheet app and re-imports cleanly.
         </p>
-        <div className="grid sm:grid-cols-2 md:grid-cols-3 gap-3">
+        <div className="grid sm:grid-cols-2 gap-3">
           <button
             onClick={() => handleExport('movies')}
             disabled={exporting !== null}
@@ -168,6 +172,20 @@ export default function DataSection({ session, onSignOut }) {
                 {exporting === 'podcasts' ? 'Exporting…' : 'Podcasts CSV'}
               </div>
               <div className="text-white/50 text-xs">Download all podcasts</div>
+            </div>
+            <Download size={18} className="ml-auto text-white/40 shrink-0" />
+          </button>
+          <button
+            onClick={() => handleExport('books')}
+            disabled={exporting !== null}
+            className="flex items-center gap-3 p-4 rounded-lg glass border border-white/10 hover:border-neon-orange/50 transition-all text-left disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <BookOpen size={22} className="text-neon-orange shrink-0" />
+            <div>
+              <div className="text-white font-medium">
+                {exporting === 'books' ? 'Exporting…' : 'Books CSV'}
+              </div>
+              <div className="text-white/50 text-xs">Download all books</div>
             </div>
             <Download size={18} className="ml-auto text-white/40 shrink-0" />
           </button>
@@ -254,18 +272,27 @@ export default function DataSection({ session, onSignOut }) {
         </section>
       )}
 
-      {/* Required by TMDB's API terms whenever the movie/TV lookup is enabled. */}
-      {TMDB_ENABLED && (
-        <section>
-          <h3 className="text-white font-semibold mb-2">Credits</h3>
+      {/* TMDB's API terms require its notice whenever the movie/TV lookup is
+          enabled. Open Library (book lookup) is always on and asks for credit. */}
+      <section>
+        <h3 className="text-white font-semibold mb-2">Credits</h3>
+        <div className="space-y-2">
+          {TMDB_ENABLED && (
+            <div className="flex items-center gap-4 p-4 rounded-lg glass border border-white/10">
+              <img src={tmdbLogo} alt="TMDB" className="h-4 w-auto shrink-0" />
+              <p className="text-white/50 text-xs">
+                This product uses the TMDB API but is not endorsed or certified by TMDB.
+              </p>
+            </div>
+          )}
           <div className="flex items-center gap-4 p-4 rounded-lg glass border border-white/10">
-            <img src={tmdbLogo} alt="TMDB" className="h-4 w-auto shrink-0" />
+            <BookOpen size={16} className="text-neon-orange shrink-0" />
             <p className="text-white/50 text-xs">
-              This product uses the TMDB API but is not endorsed or certified by TMDB.
+              Book data and covers from Open Library (openlibrary.org), a project of the Internet Archive.
             </p>
           </div>
-        </section>
-      )}
+        </div>
+      </section>
 
       <LetterboxdImportModal
         isOpen={isImportOpen}

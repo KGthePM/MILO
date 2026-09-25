@@ -41,6 +41,7 @@ function formatDigestLine(m) {
   const bits = [`${m.rating}/10`];
   if (m.genre) bits.push(m.genre);
   if (m.director) bits.push('dir. ' + m.director);
+  if (m.author) bits.push('by ' + m.author);
   if (m.release_year) bits.push(String(m.release_year));
   const notes = truncateNotes(m.notes);
   return `${m.title} (${bits.join(', ')})${notes ? ` — ${notes}` : ''}`;
@@ -236,6 +237,7 @@ const CONTENT_PROMPT_LABELS = {
   movie: { label: 'movies', history: 'viewing history', consumed: 'watched' },
   tv: { label: 'TV series', history: 'viewing history', consumed: 'watched' },
   podcast: { label: 'podcasts', history: 'listening history', consumed: 'listened to' },
+  book: { label: 'books', history: 'reading history', consumed: 'read' },
 };
 
 export function buildRecommendationPrompt(userMovies, type, contentType, options = {}) {
@@ -357,8 +359,8 @@ For each, explain why it's a hidden gem that fits my taste perfectly.`;
 // are mirrored verbatim in backend/ollama-recommender.js. Keep the two in sync.
 // ---------------------------------------------------------------------------
 
-export function buildTasteAnalysisPrompt(digest, contentLabel = 'movies, TV & podcasts', options = {}) {
-  const systemPrompt = `You are a media taste analyst covering film, television, and podcasts. Study the user's library digest and compile a concise, structured profile of their taste.
+export function buildTasteAnalysisPrompt(digest, contentLabel = 'movies, TV, podcasts & books', options = {}) {
+  const systemPrompt = `You are a media taste analyst covering film, television, podcasts, and books. Study the user's library digest and compile a concise, structured profile of their taste.
 
 Base every field strictly on the evidence in the digest — especially what they rate highly versus poorly. Do not invent facts. Be specific and vivid, not generic.
 
@@ -388,7 +390,7 @@ Analyze my ${contentLabel} taste and return the JSON profile described. Focus on
 - What my lowest-rated titles reveal about what to steer away from (dislikes)
 - Recurring themes, styles, directors, and eras
 - Patterns (e.g. rating auteur work above box-office hits) and any hidden-gem affinity
-- How my taste differs across the media I track (movies, TV, podcasts) — only for those present in the digest
+- How my taste differs across the media I track (movies, TV, podcasts, books) — only for those present in the digest
 - insights: infer WHY I accept or reject things, not just what — contrast titles I reacted "Interested" to against "Not for me" ones, especially within the same genre
 - dislikePatterns: what my rejections and low ratings have in common
 - Weight my recent watches and recent reactions more heavily than older history — they reflect my taste right now
@@ -491,7 +493,7 @@ export function formatTasteProfileForPrompt(profile) {
   return `Here is my saved taste profile (a distilled read of my library — treat it as the primary guide):\n${lines.join('\n')}`;
 }
 
-export function buildAssistantPrompt(userMessage, movies = [], tvSeries = [], podcasts = [], analytics = null, history = [], tasteProfile = null) {
+export function buildAssistantPrompt(userMessage, movies = [], tvSeries = [], podcasts = [], books = [], analytics = null, history = [], tasteProfile = null) {
   let context = 'User library:\n\n';
 
   if (movies.length > 0) {
@@ -540,6 +542,22 @@ export function buildAssistantPrompt(userMessage, movies = [], tvSeries = [], po
     if (hosts.length) context += `Favorite podcast hosts: ${hosts.join(', ')}\n`;
   }
 
+  if (books.length > 0) {
+    const topBooks = [...books]
+      .sort((a, b) => b.rating - a.rating)
+      .slice(0, 10)
+      .map(
+        (b) =>
+          `${b.title} (${b.rating}/10${b.genre ? ', ' + b.genre : ''}${b.author ? ', by ' + b.author : ''})`
+      )
+      .join('\n- ');
+    const bookGenres = [...new Set(books.map((b) => b.genre).filter(Boolean))];
+    const authors = [...new Set(books.map((b) => b.author).filter(Boolean))];
+    context += `\nTop rated books:\n- ${topBooks}\n`;
+    if (bookGenres.length) context += `\nFavorite book genres: ${bookGenres.join(', ')}\n`;
+    if (authors.length) context += `Favorite authors: ${authors.join(', ')}\n`;
+  }
+
   if (analytics) {
     context += `\nTotal content watched: ${analytics.totalWatched || 0}\n`;
     context += `Average rating: ${analytics.averageRating?.toFixed?.(1) || 'N/A'}/10\n`;
@@ -548,17 +566,18 @@ export function buildAssistantPrompt(userMessage, movies = [], tvSeries = [], po
   const profileText = formatTasteProfileForPrompt(tasteProfile);
   if (profileText) context += `\n${profileText}\n`;
 
-  const systemPrompt = `You are MILO (Movie Intelligence & Learning Overseer), a sophisticated AI assistant for a personal movie, TV, and podcast tracking application.
+  const systemPrompt = `You are MILO (Movie Intelligence & Learning Overseer), a sophisticated AI assistant for a personal movie, TV, podcast, and book tracking application.
 
 Your personality:
 - Professional, knowledgeable, and slightly witty
 - Helpful and concise in your responses
-- Deeply passionate about movies, TV shows, and podcasts
+- Deeply passionate about movies, TV shows, podcasts, and books
 - Like a friendly film critic or knowledgeable cinema enthusiast
 
 Guidelines:
 - Keep responses focused and concise (2-4 sentences typically)
-- Be specific and personalized using their actual watching and listening history
+- Be specific and personalized using their actual watching, listening, and reading history
+- Cross-media connections are welcome (a novel behind a film they loved, a show adapted from a book)
 - When recommending, explain WHY it fits their taste
 - If they have no history, suggest popular titles to get started
 - Be encouraging about their viewing journey

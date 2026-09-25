@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { motion, useReducedMotion } from 'framer-motion';
-import { Film, Mic, Star, TrendingUp, Tv } from 'lucide-react';
+import { BookOpen, Film, Mic, Star, TrendingUp, Tv } from 'lucide-react';
 import { getContentType, accentFor } from '../../utils/contentTypes';
 import StatsSkeleton from './StatsSkeleton';
 
@@ -8,6 +8,7 @@ const CONFIG = {
   movie: { icon: Film, label: 'Movies' },
   tv: { icon: Tv, label: 'TV Series' },
   podcast: { icon: Mic, label: 'Podcasts' },
+  book: { icon: BookOpen, label: 'Books' },
 };
 
 // Animates from the previous displayed value to `value` on change, easing

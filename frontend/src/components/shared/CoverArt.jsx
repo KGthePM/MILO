@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { accentFor, iconFor } from '../../utils/contentTypes';
 
 // Card artwork for every content type: square cover art for podcasts, a 2:3
-// poster for movies and TV. The sizes are complete literal strings so Tailwind
+// poster for movies, TV, and books. The sizes are complete literal strings so Tailwind
 // keeps them in the build. SkeletonGrid uses the same shapes so nothing jumps
 // when the data lands.
 export const COVER_SIZE = {
@@ -34,7 +34,7 @@ export default function CoverArt({ contentType, src, title }) {
   return (
     <img
       src={src}
-      alt={`${title} ${contentType === 'podcast' ? 'cover art' : 'poster'}`}
+      alt={`${title} ${contentType === 'podcast' || contentType === 'book' ? 'cover' : 'poster'}`}
       loading="lazy"
       onError={() => setFailedSrc(src)}
       className={`${size} rounded-lg object-cover flex-shrink-0 border border-white/10`}

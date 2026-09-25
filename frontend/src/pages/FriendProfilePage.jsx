@@ -1,14 +1,12 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { ArrowLeft, User, Star, Calendar, Film, Tv, Mic } from 'lucide-react';
+import { ArrowLeft, User, Star, Calendar } from 'lucide-react';
 import { getFriendMovies } from '../api/friendsApi';
 import { getSupabase } from '../utils/supabase';
 import { FriendsProvider } from '../utils/FriendsContext';
-import { CONTENT_TYPES, ACCENT } from '../utils/contentTypes';
+import { CONTENT_TYPES, ACCENT, TYPE_ICONS } from '../utils/contentTypes';
 import SkeletonGrid from '../components/shared/SkeletonGrid';
-
-const TAB_ICONS = { movie: Film, tv: Tv, podcast: Mic };
 
 function formatDate(d) {
   if (!d) return 'No date';
@@ -35,6 +33,11 @@ function ReadOnlyCard({ item }) {
       )}
       {item.type === 'podcast' && item.host && (
         <div className="text-white/60 text-xs mb-1">Host: {item.host}</div>
+      )}
+      {item.type === 'book' && item.author && (
+        <div className="text-white/60 text-xs mb-1">
+          By {item.author}{item.page_count ? ` · ${item.page_count} pages` : ''}
+        </div>
       )}
       {item.type === 'tv' && (item.num_seasons || item.total_episodes) && (
         <div className="text-white/60 text-xs mb-1">
@@ -127,21 +130,26 @@ function FriendProfilePageInner() {
         </motion.header>
 
         {/* Full-width segmented control on phones: at `w-fit` with desktop
-            padding the third tab ("Podcasts (n)") ran off the right edge. */}
+            padding the third tab ("Podcasts (n)") ran off the right edge. With
+            four tabs even full width can't fit the labels on a phone, so below
+            sm each tab is icon + count and the label comes back at sm. */}
         <div className="flex gap-1 sm:gap-2 mb-4 p-1 glass rounded-xl w-full sm:w-fit">
           {Object.values(CONTENT_TYPES).map((ct) => {
-            const Icon = TAB_ICONS[ct.key];
+            const Icon = TYPE_ICONS[ct.key];
             const a = ACCENT[ct.accent];
             return (
               <button
                 key={ct.key}
                 onClick={() => setTab(ct.key)}
+                title={ct.nav}
+                aria-label={`${ct.nav} (${byType[ct.key].length})`}
                 className={`flex min-w-0 flex-1 items-center justify-center gap-1.5 rounded-lg px-2 py-2 text-sm font-medium sm:flex-none sm:gap-2 sm:px-4 ${
                   tab === ct.key ? `${a.bgSoft} ${a.text}` : 'text-white/70 hover:text-white'
                 }`}
               >
                 <Icon size={16} className="flex-shrink-0" />
-                <span className="truncate">{ct.nav} ({byType[ct.key].length})</span>
+                <span className="sm:hidden">{byType[ct.key].length}</span>
+                <span className="hidden sm:inline truncate">{ct.nav} ({byType[ct.key].length})</span>
               </button>
             );
           })}
