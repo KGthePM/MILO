@@ -3,11 +3,12 @@ import { useNavigate } from 'react-router-dom';
 import { IS_CLOUD } from '../utils/mode';
 import NeonHorizon from '../components/shared/NeonHorizon';
 import { getSupabase } from '../utils/supabase';
+import { TESTFLIGHT_URL } from '../utils/native';
 import { useEffect, useState, useCallback } from 'react';
 import {
   Film, Tv, Bot, Sparkles, Search, BarChart3, Palette, Clock,
   Cpu, Server, Database, Wind, Zap, Github, Download, Play,
-  ChevronDown, Maximize, X,
+  ChevronDown, Maximize, X, Smartphone,
 } from 'lucide-react';
 
 const GITHUB_URL = 'https://github.com/KGthePM/milo';
@@ -128,6 +129,10 @@ export default function LandingPage() {
             <div className="hidden md:flex items-center space-x-6">
               <a href="#features" className="text-white/70 hover:text-neon-cyan transition-colors">Features</a>
               <a href="#tech" className="text-white/70 hover:text-neon-cyan transition-colors">Tech Stack</a>
+              <a href={TESTFLIGHT_URL} target="_blank" rel="noreferrer" className="text-white/70 hover:text-neon-cyan transition-colors flex items-center space-x-1">
+                <Smartphone size={18} />
+                <span>iOS Beta</span>
+              </a>
               <a href={GITHUB_URL} target="_blank" rel="noreferrer" className="text-white/70 hover:text-neon-cyan transition-colors flex items-center space-x-1">
                 <Github size={18} />
                 <span>GitHub</span>
@@ -188,6 +193,13 @@ export default function LandingPage() {
               <Play size={20} className="group-hover:scale-110 transition-transform" />
               <span>{ctaLabel}</span>
             </button>
+            <a
+              href={TESTFLIGHT_URL} target="_blank" rel="noreferrer"
+              className="group px-8 py-4 glass text-white font-semibold rounded-lg flex items-center space-x-2 hover:neon-border-magenta transition-all"
+            >
+              <Smartphone size={20} className="text-neon-magenta group-hover:scale-110 transition-transform" />
+              <span>Join the iOS Beta</span>
+            </a>
             <a
               href={GITHUB_URL} target="_blank" rel="noreferrer"
               className="px-8 py-4 glass text-white font-semibold rounded-lg flex items-center space-x-2 hover:border-cyan-500/50 transition-all"
@@ -370,6 +382,12 @@ export default function LandingPage() {
               <Sparkles size={20} />
               <span>{ctaLabel}</span>
             </button>
+            <p className="mt-6 text-sm text-white/50">
+              On iPhone?{' '}
+              <a href={TESTFLIGHT_URL} target="_blank" rel="noreferrer" className="text-neon-magenta hover:underline">
+                Join the TestFlight beta &rarr;
+              </a>
+            </p>
           </motion.div>
         </div>
       </section>

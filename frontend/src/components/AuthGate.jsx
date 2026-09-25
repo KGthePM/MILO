@@ -3,7 +3,7 @@ import { motion, useReducedMotion } from 'framer-motion';
 import { LogIn, Mail, Lock, AtSign, KeyRound } from 'lucide-react';
 import { CONTENT_TYPES, CONTENT_TYPE_KEYS, ACCENT, TYPE_ICONS } from '../utils/contentTypes';
 import { IS_CLOUD } from '../utils/mode';
-import { IS_NATIVE } from '../utils/native';
+import { IS_NATIVE, TESTFLIGHT_URL } from '../utils/native';
 import { getSupabase } from '../utils/supabase';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { nativeAppleSignIn, webAppleSignIn, maybeApplyAppleDisplayName } from '../utils/appleAuth';
@@ -368,10 +368,7 @@ function CloudAuthGate({ children }) {
                 disabled={submitting || warping}
                 className="w-full flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-white text-black font-semibold hover:bg-white/90 transition-all disabled:opacity-50"
               >
-                {/* Apple logo — inline SVG (lucide has no Apple mark) */}
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-                  <path d="M17.05 20.28c-.98.95-2.05.8-3.08.35-1.09-.46-2.09-.48-3.24 0-1.44.62-2.2.44-3.06-.35C2.79 15.25 3.51 7.59 9.05 7.31c1.35.07 2.29.74 3.08.8 1.18-.24 2.31-.93 3.57-.84 1.51.12 2.65.72 3.4 1.8-3.12 1.87-2.38 5.98.48 7.13-.57 1.5-1.31 2.99-2.53 4.08zM12.03 7.25c-.15-2.23 1.66-4.07 3.74-4.25.29 2.58-2.34 4.5-3.74 4.25z"/>
-                </svg>
+                <AppleMark size={16} />
                 Sign in with Apple
               </button>
             </>
@@ -396,6 +393,18 @@ function CloudAuthGate({ children }) {
               <KeyRound size={13} /> Forgot password?
             </button>
           )}
+          {/* Web only — inside the iOS app this would link to itself. */}
+          {!IS_NATIVE && (
+            <a
+              href={TESTFLIGHT_URL}
+              target="_blank"
+              rel="noreferrer"
+              className="mt-5 mx-auto flex w-fit items-center gap-1.5 rounded-full border border-white/10 bg-black/30 px-3 py-1.5 text-xs text-white/50 hover:text-white/80 hover:border-white/25 transition-colors"
+            >
+              <AppleMark size={12} />
+              Get the iPhone beta on TestFlight
+            </a>
+          )}
           <p className="mt-6 text-white/30 text-xs text-center">Your library, your keys — AI powered</p>
         </motion.div>
       </div>
@@ -403,4 +412,13 @@ function CloudAuthGate({ children }) {
   }
 
   return <>{children}</>;
+}
+
+// Apple logo — inline SVG (lucide has no Apple mark).
+function AppleMark({ size }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+      <path d="M17.05 20.28c-.98.95-2.05.8-3.08.35-1.09-.46-2.09-.48-3.24 0-1.44.62-2.2.44-3.06-.35C2.79 15.25 3.51 7.59 9.05 7.31c1.35.07 2.29.74 3.08.8 1.18-.24 2.31-.93 3.57-.84 1.51.12 2.65.72 3.4 1.8-3.12 1.87-2.38 5.98.48 7.13-.57 1.5-1.31 2.99-2.53 4.08zM12.03 7.25c-.15-2.23 1.66-4.07 3.74-4.25.29 2.58-2.34 4.5-3.74 4.25z"/>
+    </svg>
+  );
 }

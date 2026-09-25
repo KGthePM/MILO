@@ -11,6 +11,10 @@ export const IS_NATIVE = (() => {
   return proto === 'capacitor:' || proto === 'ionic:' || proto === 'file:';
 })();
 
+// Public TestFlight invite for the iOS beta. Only surfaced on the web — the
+// native app never links to itself.
+export const TESTFLIGHT_URL = 'https://testflight.apple.com/join/Qg6TvABz';
+
 // supabase-js storage adapter backed by @capacitor/preferences (UserDefaults
 // on iOS). Async — supabase-js awaits getItem/setItem/removeItem.
 export function nativeStorageAdapter() {
