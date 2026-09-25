@@ -9,7 +9,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { nativeAppleSignIn, webAppleSignIn, maybeApplyAppleDisplayName } from '../utils/appleAuth';
 import { registerAuthDeepLinkListener } from '../utils/authDeepLinks';
 import NeonHorizon from './shared/NeonHorizon';
-import { WARP_MS, prefersReducedMotion } from '../utils/neonHorizon';
+import { WARP_MS, WARP_SKIP_MS, prefersReducedMotion } from '../utils/neonHorizon';
 
 export default function AuthGate({ children }) {
   if (!IS_CLOUD) return children;
@@ -29,9 +29,12 @@ function CloudAuthGate({ children }) {
   // Warp-out: on a real sign-in the backdrop accelerates into hyperspace for
   // WARP_MS before the app mounts, so the first sign-in feels like an event.
   const [warping, setWarping] = useState(false);
+  // Tap-to-skip: jumps the canvas to its exit flash and shortens the hand-off.
+  const [warpSkipped, setWarpSkipped] = useState(false);
   const sessionRef = useRef(null);
   const formShownRef = useRef(false);
   const warpTimerRef = useRef(null);
+  const finishWarpRef = useRef(null);
   const navigate = useNavigate();
   const location = useLocation();
   // The .auth-* reduced-motion block in index.css can't reach these three
@@ -71,13 +74,15 @@ function CloudAuthGate({ children }) {
         event === 'SIGNED_IN' && !prefersReducedMotion()
       ) {
         setWarping(true);
-        warpTimerRef.current = setTimeout(() => {
+        finishWarpRef.current = () => {
           if (!mounted) return;
           sessionRef.current = s;
           setSession(s);
           setWarping(false);
+          setWarpSkipped(false);
           maybeRedirect(s);
-        }, WARP_MS);
+        };
+        warpTimerRef.current = setTimeout(() => finishWarpRef.current(), WARP_MS);
         return; // hold the sign-in screen mounted while the backdrop warps
       }
       sessionRef.current = s;
@@ -160,6 +165,13 @@ function CloudAuthGate({ children }) {
     }
   };
 
+  const skipWarp = () => {
+    if (!warping || warpSkipped) return;
+    setWarpSkipped(true);
+    clearTimeout(warpTimerRef.current);
+    warpTimerRef.current = setTimeout(() => finishWarpRef.current?.(), WARP_SKIP_MS);
+  };
+
   // Sign in with Apple — native sheet on iOS, OAuth redirect on web.
   const appleSignIn = async () => {
     setError(null); setInfo(null); setSubmitting(true);
@@ -227,11 +239,39 @@ function CloudAuthGate({ children }) {
             grid, which iOS smeared into a colour wash after a second or two;
             see the .auth-backdrop comment in index.css. Sits after the glow
             blobs so its additive line art composites over them. */}
-        <NeonHorizon phase={warping ? 'warp' : 'idle'} className="auth-backdrop" />
+        <NeonHorizon
+          phase={warping ? 'warp' : 'idle'}
+          skip={warpSkipped}
+          eggs="idle"
+          className="auth-backdrop"
+        />
+        {warping && (
+          <button
+            type="button"
+            aria-label="Skip animation"
+            onClick={skipWarp}
+            className="fixed inset-0 z-20 cursor-default"
+          >
+            <motion.span
+              initial={{ opacity: 0 }}
+              animate={{ opacity: warpSkipped ? 0 : 1 }}
+              transition={{ delay: warpSkipped ? 0 : 0.8, duration: 0.4 }}
+              className="absolute inset-x-0 text-center text-white/35 text-xs uppercase tracking-[0.3em]"
+              style={{ bottom: 'calc(env(safe-area-inset-bottom, 0px) + 1.75rem)' }}
+            >
+              Tap to skip
+            </motion.span>
+          </button>
+        )}
 
         <motion.div
           initial={{ opacity: 0, y: 20 }}
-          animate={warping ? { opacity: 0, y: -14, scale: 1.06 } : { opacity: 1, y: 0, scale: 1 }}
+          // Hidden once faded: the .glass backdrop-filter would otherwise keep
+          // recompositing over a 60fps canvas for the whole warp, which is the
+          // WKWebView main-thread starvation bf98bb8 fixed.
+          animate={warping
+            ? { opacity: 0, y: -14, scale: 1.06, transitionEnd: { visibility: 'hidden' } }
+            : { opacity: 1, y: 0, scale: 1, visibility: 'visible' }}
           transition={warping ? { duration: 0.45, ease: 'easeIn' } : undefined}
           className="relative z-10 w-full max-w-md glass rounded-2xl p-8 neon-border-cyan"
         >

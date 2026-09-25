@@ -24,10 +24,24 @@
 // WKWebView main thread starves touch handling.
 
 import { IS_NATIVE } from './native';
+import { createEggDirector } from './warpEggs';
 
 // How long the sign-in warp-out runs. Exported so AuthGate's hand-off timer
 // and the animation can never drift apart.
-export const WARP_MS = 700;
+export const WARP_MS = 2400;
+
+// The warp is a short sequence rather than a single ramp, as fractions of
+// WARP_MS: a spool-down breath (charge), the jump (launch), sustained
+// hyperspace where the easter eggs fly past (cruise), then the punch and
+// white-out (exit).
+const CHARGE_END = 0.12;
+const LAUNCH_END = 0.30;
+const EXIT_START = 0.86;
+const CRUISE_SPEED = 18;
+
+// A skipped warp jumps straight to the exit, so the flash still plays. AuthGate
+// reschedules its hand-off to this.
+export const WARP_SKIP_MS = Math.round(WARP_MS * (1 - EXIT_START));
 
 export function prefersReducedMotion() {
   if (typeof window === 'undefined' || !window.matchMedia) return false;
@@ -52,6 +66,48 @@ const BOOT_MS = 1300;    // matches the 1.6s wordmark power-on in index.css
 
 const clamp = (v, lo, hi) => (v < lo ? lo : v > hi ? hi : v);
 
+// Warp choreography for progress p in [0, 1]. speedMul scales the field's
+// forward speed, trail stretches stars into streaks, dolly scales the focal
+// length, roll tilts the whole scene (radians), flash is the white-out alpha.
+function warpCurve(p) {
+  if (p < CHARGE_END) {
+    const e = Math.sin((p / CHARGE_END) * Math.PI / 2);
+    return { speedMul: 1 - 0.7 * e, trail: 0.02, dolly: 1 - 0.04 * e, roll: 0, flash: 0 };
+  }
+  if (p < LAUNCH_END) {
+    const q = (p - CHARGE_END) / (LAUNCH_END - CHARGE_END);
+    const e = q * q * q;                     // easeInCubic — a real launch
+    return {
+      speedMul: 0.3 + (CRUISE_SPEED - 0.3) * e,
+      trail: 0.02 + 1.08 * q * q,
+      dolly: 0.96 + 0.1 * e,
+      roll: 0,
+      flash: 0,
+    };
+  }
+  if (p < EXIT_START) {
+    const q = (p - LAUNCH_END) / (EXIT_START - LAUNCH_END);
+    // A slow barrel roll and a shimmer in the streaks, eased in and out so
+    // cruise never reads as a frozen frame.
+    const env = Math.sin(q * Math.PI);
+    return {
+      speedMul: CRUISE_SPEED,
+      trail: 1.1 + 0.12 * Math.sin(q * Math.PI * 6),
+      dolly: 1.06,
+      roll: Math.sin(q * Math.PI * 2) * 0.025 * env,
+      flash: 0,
+    };
+  }
+  const q = clamp((p - EXIT_START) / (1 - EXIT_START), 0, 1);
+  return {
+    speedMul: CRUISE_SPEED + 8 * q * q,
+    trail: 1.1 + 0.3 * q * q,
+    dolly: 1.06 + 0.19 * q * q,
+    roll: 0,
+    flash: q > 0.3 ? Math.pow((q - 0.3) / 0.7, 2) * 0.85 : 0,
+  };
+}
+
 // Star palette: mostly cool white, with the magenta/purple accents sprinkled
 // in so the field reads as MILO's tri-accent rather than a generic starfield.
 const STAR_COLORS = [
@@ -63,8 +119,10 @@ const STAR_COLORS = [
 
 /**
  * @param {HTMLCanvasElement} canvas
- * @param {{variant?: 'full'|'calm', fpsCap?: number}} [options]
- * @returns {{setPhase: (p: 'idle'|'warp') => void, destroy: () => void}}
+ * @param {{variant?: 'full'|'calm', fpsCap?: number, eggs?: 'idle'|false}} [options]
+ *   eggs: 'idle' adds the occasional easter-egg drift-by while idling. The
+ *   warp always gets its eggs.
+ * @returns {{setPhase: (p: 'idle'|'warp') => void, skip: () => void, destroy: () => void}}
  */
 export function createNeonHorizon(canvas, options = {}) {
   const variant = options.variant === 'calm' ? 'calm' : 'full';
@@ -74,9 +132,12 @@ export function createNeonHorizon(canvas, options = {}) {
   const idleFps = options.fpsCap || (IS_NATIVE ? 30 : 60);
 
   const ctx = canvas.getContext('2d', { alpha: true });
-  if (!ctx) return { setPhase() {}, destroy() {} };
+  if (!ctx) return { setPhase() {}, skip() {}, destroy() {} };
 
   const reduced = prefersReducedMotion();
+  // Never on the calm variant or under reduced motion (which draws one static
+  // frame — an egg would freeze mid-flight).
+  const eggs = createEggDirector({ idle: options.eggs === 'idle' && !calm && !reduced });
 
   // --- Mutable engine state -------------------------------------------------
   let w = 0, h = 0, dpr = 1;
@@ -194,12 +255,14 @@ export function createNeonHorizon(canvas, options = {}) {
     let trailFactor = 0.02;
     let fEff = f;
     let flash = 0;
+    let roll = 0;
     if (phase === 'warp' && !reduced) {
-      const p = clamp((now - warpStart) / WARP_MS, 0, 1);
-      speedMul = 1 + 25 * p * p * p;          // easeInCubic — a real launch
-      trailFactor = 0.02 + 1.4 * p * p;        // dots stretch into streaks
-      fEff = f * (1 + 0.25 * p);               // slight dolly for punch
-      if (p > 0.71) flash = Math.pow((p - 0.71) / 0.29, 2) * 0.85;
+      const c = warpCurve(clamp((now - warpStart) / WARP_MS, 0, 1));
+      speedMul = c.speedMul;
+      trailFactor = c.trail;
+      fEff = f * c.dolly;
+      flash = c.flash;
+      roll = c.roll;
     }
 
     // Vanishing point drift. On the web the pointer drives it; on native the
@@ -216,6 +279,11 @@ export function createNeonHorizon(canvas, options = {}) {
 
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.clearRect(0, 0, w, h);
+    if (roll) {
+      ctx.translate(w / 2, h / 2);
+      ctx.rotate(roll);
+      ctx.translate(-w / 2, -h / 2);
+    }
 
     // Horizon glow first, underneath the line art. The extra kick at boot is
     // the "power on" flare that syncs with the wordmark igniting.
@@ -234,8 +302,11 @@ export function createNeonHorizon(canvas, options = {}) {
     drawHorizonLine(cx, bootAlpha, flare);
     drawFloor(cx, fEff, bootP, bootAlpha);
     drawStars(cx, fEff, trailFactor, bootAlpha);
+    eggs.draw(ctx, now, { cx, vpY, f, fEff, w, h, camY: CAM_Y, alpha: bootAlpha });
 
     if (flash > 0) {
+      // Untilted, so the white-out covers the corners even mid-roll.
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       ctx.globalCompositeOperation = 'source-over';
       ctx.globalAlpha = 1;
       ctx.fillStyle = `rgba(190, 245, 255, ${flash.toFixed(3)})`;
@@ -443,7 +514,15 @@ export function createNeonHorizon(canvas, options = {}) {
     setPhase(next) {
       if (next === phase) return;
       phase = next;
-      if (next === 'warp') warpStart = performance.now();
+      if (next === 'warp') {
+        warpStart = performance.now();
+        eggs.startWarp(warpStart, WARP_MS);
+      }
+    },
+    // Jump a running warp to its exit so the flash still plays.
+    skip() {
+      if (phase !== 'warp') return;
+      warpStart = Math.min(warpStart, performance.now() - EXIT_START * WARP_MS);
     },
     destroy() {
       destroyed = true;

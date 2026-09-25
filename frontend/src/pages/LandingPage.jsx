@@ -146,7 +146,7 @@ export default function LandingPage() {
         </div>
         {/* Same canvas deep-field as the sign-in screen. Absolute, not fixed —
             this is a hero section, not the viewport. */}
-        <NeonHorizon className="absolute inset-0" />
+        <NeonHorizon eggs="idle" className="absolute inset-0" />
 
         <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
           <motion.div initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.8, ease: 'easeOut' }}>
