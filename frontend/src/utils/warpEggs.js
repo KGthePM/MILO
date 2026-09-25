@@ -412,8 +412,15 @@ const MID_WIDTH_FRAC = 0.22;
 const WARP_SLOTS = [0.12, 0.20, 0.28, 0.36, 0.44, 0.52];
 const WARP_FLIGHT = 0.44;
 
-// Idle: one at a time, the first once the boot flare has settled.
-const IDLE_FIRST_MS = [3500, 5000];
+// Opening burst: attention is shortest in the first few seconds, so the page
+// opens with three quick eggs while the grid powers on, rather than making
+// people wait for the first drift-by. Offsets from the first frame.
+const BURST_AT_MS = [700, 1300, 1900];
+const BURST_FLIGHT_MS = 2400;
+const BURST_ALPHA = 0.85;
+
+// Idle: one at a time after the burst.
+const IDLE_AFTER_BURST_MS = [6500, 8000];
 const IDLE_GAP_MS = [5000, 9000];
 const IDLE_FLIGHT_MS = 3600;
 const IDLE_ALPHA = 0.7;
@@ -465,8 +472,10 @@ export function createEggDirector({ idle = false } = {}) {
      */
     draw(ctx, now, view) {
       if (idle && !warped) {
-        if (!nextIdleAt) nextIdleAt = now + rand(IDLE_FIRST_MS[0], IDLE_FIRST_MS[1]);
-        else if (now >= nextIdleAt && !flights.length) {
+        if (!nextIdleAt) {
+          for (const at of BURST_AT_MS) launch(nextEgg(), now + at, BURST_FLIGHT_MS, BURST_ALPHA);
+          nextIdleAt = now + rand(IDLE_AFTER_BURST_MS[0], IDLE_AFTER_BURST_MS[1]);
+        } else if (now >= nextIdleAt && !flights.length) {
           launch(nextEgg(), now, IDLE_FLIGHT_MS, IDLE_ALPHA);
           nextIdleAt = now + rand(IDLE_GAP_MS[0], IDLE_GAP_MS[1]);
         }
