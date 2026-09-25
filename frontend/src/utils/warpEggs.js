@@ -16,13 +16,19 @@
 // stands for that type. Signs and the cat are neutral. Nods only — no
 // trademarks, logos, or real brands.
 
-const FONT = '-apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif';
+// Japanese faces sit ahead of the generic fallback so the kana/kanji signs
+// render in a real Japanese font wherever one is installed.
+const FONT = '-apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, "Hiragino Sans", "Yu Gothic", "Noto Sans JP", sans-serif';
 
 const WHITE = [225, 250, 255];
 const CYAN = [0, 212, 255];         // Movies
 const MAGENTA = [255, 40, 140];     // TV (neon-magenta, lifted a touch for line art)
 const PURPLE = [170, 120, 255];     // Podcasts (neon-purple is too dim as a hairline)
 const ORANGE = [255, 122, 24];      // Books
+// Kawaii set only. Deliberately not accent tokens: blush and daruma red are
+// decoration, not a content type.
+const BLUSH = [255, 150, 190];
+const DARUMA_RED = [255, 85, 85];
 
 const rgba = (c, a) => `rgba(${c[0]}, ${c[1]}, ${c[2]}, ${a})`;
 
@@ -371,6 +377,170 @@ const ufo = {
   },
 };
 
+
+// --- Kawaii set ---------------------------------------------------------------
+// Dot eyes, a tiny smile, blush cheeks — the one face every egg below shares.
+function kawaiiFace(ctx, s, x, y, c = WHITE) {
+  ctx.fillStyle = rgba(c, 0.95);
+  ctx.beginPath();
+  ctx.arc(x - 6, y, 1.8, 0, Math.PI * 2);
+  ctx.moveTo(x + 7.8, y);
+  ctx.arc(x + 6, y, 1.8, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.arc(x, y + 2, 2.5, 0.15 * Math.PI, 0.85 * Math.PI);
+  glow(ctx, s, c);
+  ctx.fillStyle = rgba(BLUSH, 0.45);
+  ctx.beginPath();
+  ctx.ellipse(x - 10, y + 4, 3, 1.8, 0, 0, Math.PI * 2);
+  ctx.moveTo(x + 13, y + 4);
+  ctx.ellipse(x + 10, y + 4, 3, 1.8, 0, 0, Math.PI * 2);
+  ctx.fill();
+}
+
+const onigiri = {
+  id: 'onigiri',
+  kind: 'sky',
+  draw(ctx, s) {
+    backing(ctx, -14, 6, 28, 17, 2);
+    ctx.beginPath();
+    ctx.moveTo(0, 22);
+    ctx.arcTo(28, 22, 0, -28, 9);
+    ctx.arcTo(0, -28, -28, 22, 9);
+    ctx.arcTo(-28, 22, 28, 22, 9);
+    ctx.closePath();
+    glow(ctx, s, WHITE);
+    // Nori wrap.
+    ctx.beginPath();
+    ctx.rect(-12, 7, 24, 15);
+    glow(ctx, s, CYAN);
+    kawaiiFace(ctx, s, 0, -4);
+  },
+};
+
+const luckyCat = {
+  id: 'maneki-neko',
+  kind: 'sky',
+  draw(ctx, s, t) {
+    ctx.beginPath();
+    roundRect(ctx, -20, -4, 40, 34, 14);
+    ctx.moveTo(16, -18); ctx.arc(0, -18, 16, 0, Math.PI * 2);
+    ctx.moveTo(-14, -26); ctx.lineTo(-12, -40); ctx.lineTo(-3, -32);
+    ctx.moveTo(14, -26); ctx.lineTo(12, -40); ctx.lineTo(3, -32);
+    // Collar and bell.
+    ctx.moveTo(-12, -3); ctx.quadraticCurveTo(0, 3, 12, -3);
+    ctx.moveTo(4, 5); ctx.arc(0, 5, 4, 0, Math.PI * 2);
+    glow(ctx, s, WHITE);
+    // The beckoning paw, waving on its own clock.
+    ctx.save();
+    ctx.translate(18, -2);
+    ctx.rotate(-0.3 + Math.sin(t * 7) * 0.35);
+    ctx.beginPath();
+    roundRect(ctx, -4, -20, 9, 20, 4.5);
+    glow(ctx, s, WHITE);
+    ctx.restore();
+    kawaiiFace(ctx, s, 0, -18);
+  },
+};
+
+const daruma = {
+  id: 'daruma',
+  kind: 'sky',
+  draw(ctx, s) {
+    ctx.beginPath();
+    ctx.ellipse(0, 2, 26, 30, 0, 0, Math.PI * 2);
+    glow(ctx, s, DARUMA_RED);
+    backing(ctx, -16, -20, 32, 26, 12);
+    ctx.beginPath();
+    ctx.ellipse(0, -7, 16, 13, 0, 0, Math.PI * 2);
+    // Moustache swirls.
+    ctx.moveTo(-1, 1); ctx.quadraticCurveTo(-8, -2, -11, 3);
+    ctx.moveTo(1, 1); ctx.quadraticCurveTo(8, -2, 11, 3);
+    glow(ctx, s, WHITE);
+    // Tradition: one eye is filled in when you make the wish, the other when
+    // it comes true. This one is still waiting on its watchlist.
+    ctx.fillStyle = rgba(WHITE, 0.95);
+    ctx.beginPath();
+    ctx.arc(-6, -9, 3, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.arc(6, -9, 3, 0, Math.PI * 2);
+    glow(ctx, s, WHITE);
+    text(ctx, '願', 0, 20, 11, WHITE);
+  },
+};
+
+const lantern = {
+  id: 'lantern',
+  kind: 'sky',
+  draw(ctx, s) {
+    backing(ctx, -22, -28, 44, 56, 18);
+    ctx.beginPath();
+    ctx.moveTo(0, -38); ctx.lineTo(0, -34);
+    ctx.rect(-12, -34, 24, 6);
+    ctx.rect(-12, 28, 24, 6);
+    ctx.moveTo(22, 0); ctx.ellipse(0, 0, 22, 28, 0, 0, Math.PI * 2);
+    glow(ctx, s, CYAN);
+    // "Eiga" — movie — stacked the way a lantern would carry it.
+    text(ctx, '映', 0, -8, 13, WHITE);
+    text(ctx, '画', 0, 9, 13, WHITE);
+  },
+};
+
+const koinobori = {
+  id: 'koinobori',
+  kind: 'sky',
+  draw(ctx, s, t) {
+    const wave = (x) => Math.sin(t * 5 - x * 0.08) * 3;
+    ctx.beginPath();
+    // Body: mouth ring on the left, tapering to a flapping tail.
+    ctx.moveTo(-34, -10 + wave(-34));
+    ctx.quadraticCurveTo(0, -18 + wave(0), 24, -6 + wave(24));
+    ctx.lineTo(38, -14 + wave(38));
+    ctx.lineTo(32, 0 + wave(32));
+    ctx.lineTo(38, 14 + wave(38));
+    ctx.lineTo(24, 6 + wave(24));
+    ctx.quadraticCurveTo(0, 18 + wave(0), -34, 10 + wave(-34));
+    ctx.moveTo(-34, -10 + wave(-34)); ctx.lineTo(-34, 10 + wave(-34));
+    // Scales.
+    for (let i = 0; i < 3; i++) {
+      const x = -8 + i * 10;
+      ctx.moveTo(x + 5, wave(x)); ctx.arc(x, wave(x), 5, 0, Math.PI);
+    }
+    glow(ctx, s, WHITE);
+    ctx.beginPath();
+    ctx.moveTo(-20, -2 + wave(-24)); ctx.arc(-24, -2 + wave(-24), 4, 0, Math.PI * 2);
+    glow(ctx, s, CYAN);
+  },
+};
+
+const ramen = {
+  id: 'ramen',
+  kind: 'sky',
+  draw(ctx, s, t) {
+    backing(ctx, -28, -4, 56, 30, 12);
+    ctx.beginPath();
+    ctx.moveTo(-28, -2); ctx.lineTo(28, -2);
+    ctx.moveTo(28, -2); ctx.quadraticCurveTo(26, 26, 0, 26); ctx.quadraticCurveTo(-26, 26, -28, -2);
+    ctx.moveTo(-8, 26); ctx.lineTo(-10, 30); ctx.lineTo(10, 30); ctx.lineTo(8, 26);
+    // Chopsticks resting across the rim, and a naruto slice.
+    ctx.moveTo(-6, -2); ctx.lineTo(24, -24);
+    ctx.moveTo(0, -2); ctx.lineTo(30, -20);
+    ctx.moveTo(-12, -5); ctx.arc(-17, -5, 5, 0, Math.PI, true);
+    glow(ctx, s, WHITE);
+    // Steam.
+    ctx.beginPath();
+    for (let i = 0; i < 3; i++) {
+      const x = -14 + i * 10;
+      const ph = t * 3 + i;
+      ctx.moveTo(x, -8);
+      ctx.bezierCurveTo(x + 4 * Math.sin(ph), -14, x - 4 * Math.sin(ph), -20, x, -28);
+    }
+    glow(ctx, s, WHITE);
+    kawaiiFace(ctx, s, 0, 10);
+  },
+};
+
 const POOL = [
   sign('speed-limit', [{ t: 'SPEED', size: 8 }, { t: 'LIMIT', size: 8 }, { t: '88', size: 22 }]),
   sign('last-exit', [{ t: 'LAST EXIT', size: 9 }, { t: 'BEFORE SPOILERS', size: 9 }]),
@@ -384,6 +554,9 @@ const POOL = [
   sign('sequel', [{ t: 'ROAD CLOSED', size: 9 }, { t: 'FOR SEQUEL', size: 8 }]),
   vhs, popcorn, remote, mic, book, astroCat,
   clapper, filmReel, retroTv, headphones, bookStack, ufo,
+  sign('netabare', [{ t: 'ネタバレ注意', size: 12 }, { t: 'SPOILERS AHEAD', size: 7 }]),
+  sign('jokou', [{ t: '徐行', size: 15 }, { t: 'SLOW BURN AHEAD', size: 7 }]),
+  onigiri, luckyCat, daruma, lantern, koinobori, ramen,
 ];
 
 // MILO's own wordmark colours: YOU ARE in cyan, HERE in magenta.
