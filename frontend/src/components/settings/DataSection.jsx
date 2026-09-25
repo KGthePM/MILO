@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Upload, Database, Download, LogOut, LogIn, Film, Tv, Mic, BookOpen, Trash2, AlertTriangle } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import LetterboxdImportModal from '../LetterboxdImportModal';
+import GoodreadsImportModal from '../books/GoodreadsImportModal';
 import { useMovies } from '../../utils/MovieContext';
 import { IS_CLOUD } from '../../utils/mode';
 import { getSupabase } from '../../utils/supabase';
@@ -54,6 +55,7 @@ function todayStamp() {
 
 export default function DataSection({ session, onSignOut }) {
   const [isImportOpen, setIsImportOpen] = useState(false);
+  const [isGoodreadsOpen, setIsGoodreadsOpen] = useState(false);
   const [exportError, setExportError] = useState('');
   const [exporting, setExporting] = useState(null); // 'movies' | 'tv' | 'podcasts' | 'books' | null
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
@@ -101,7 +103,7 @@ export default function DataSection({ session, onSignOut }) {
       <section>
         <h3 className="text-white font-semibold mb-2">Import</h3>
         <p className="text-white/60 text-sm mb-4">
-          Bring in ratings from Letterboxd or restore from a MILO database file.
+          Bring in ratings from Letterboxd or Goodreads, or restore from a MILO database file.
         </p>
         <div className="grid sm:grid-cols-2 gap-3">
           <button
@@ -112,6 +114,16 @@ export default function DataSection({ session, onSignOut }) {
             <div>
               <div className="text-white font-medium">Letterboxd CSV</div>
               <div className="text-white/50 text-xs">Import ratings.csv export</div>
+            </div>
+          </button>
+          <button
+            onClick={() => setIsGoodreadsOpen(true)}
+            className="flex items-center gap-3 p-4 rounded-lg glass border border-white/10 hover:border-neon-orange/50 transition-all text-left"
+          >
+            <BookOpen size={22} className="text-neon-orange shrink-0" />
+            <div>
+              <div className="text-white font-medium">Goodreads CSV</div>
+              <div className="text-white/50 text-xs">Import your library export</div>
             </div>
           </button>
           <button
@@ -294,6 +306,7 @@ export default function DataSection({ session, onSignOut }) {
         </div>
       </section>
 
+      <GoodreadsImportModal isOpen={isGoodreadsOpen} onClose={() => setIsGoodreadsOpen(false)} />
       <LetterboxdImportModal
         isOpen={isImportOpen}
         onClose={() => setIsImportOpen(false)}

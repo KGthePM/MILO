@@ -61,7 +61,7 @@ Grep for `podcast`, `NAV_ICONS`, `TAB_ICONS`, and three-way ternaries, and fix e
 - Prompt wording: books are "read", with an author. Cross-media recs ("you loved *Dune* the film → try the novel") are the big win here.
 
 ## Later / optional
-- **Goodreads CSV import**, modelled on the Letterboxd importer. It's the obvious on-ramp for real readers.
+- ~~**Goodreads CSV import**~~: **done 2026-09-24**. See `GoodreadsImportModal.jsx` / `goodreadsClient.js`.
 - A "Reading" status for books/TV/podcasts together (turned down for v1).
 
 ## Critical files

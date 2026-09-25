@@ -110,3 +110,93 @@ export async function searchBooks(term, { signal, limit = 10 } = {}) {
   const data = await response.json();
   return (data.docs || []).map(toBook).filter((b) => b.title);
 }
+
+/**
+ * Resolve many ISBNs in one request — used by the Goodreads import, where a
+ * library can hold hundreds of books. Open Library throttles cover lookups by
+ * ISBN, but a search on `isbn:(a OR b …)` is one ordinary query, and it returns
+ * `cover_i`, whose cover URLs aren't throttled. Keep batches around 40 so the
+ * URL stays short.
+ * @param {string[]} isbns  digits only (ISBN-10 or -13)
+ * @returns {Promise<Map<string, {artwork_url, genre, page_count}>>} keyed by
+ *   every requested ISBN that matched
+ * @throws on network/HTTP failure
+ */
+export async function lookupByIsbns(isbns, { signal } = {}) {
+  const wanted = new Set(isbns);
+  const found = new Map();
+  if (wanted.size === 0) return found;
+
+  const params = new URLSearchParams({
+    q: `isbn:(${[...wanted].join(' OR ')})`,
+    fields: 'isbn,cover_i,subject,number_of_pages_median',
+    limit: String(wanted.size * 2),
+  });
+  const response = await fetch(`${SEARCH_URL}?${params}`, { signal });
+  if (!response.ok) throw new Error(`Book lookup failed (${response.status})`);
+  const data = await response.json();
+
+  for (const doc of data.docs || []) {
+    const info = {
+      artwork_url: coverUrl(doc.cover_i),
+      genre: mapSubjectsToGenre(doc.subject || []),
+      page_count: typeof doc.number_of_pages_median === 'number' ? doc.number_of_pages_median : null,
+    };
+    for (const isbn of doc.isbn || []) {
+      // Prefer a matching work that actually has a cover.
+      if (wanted.has(isbn) && (!found.has(isbn) || (!found.get(isbn).artwork_url && info.artwork_url))) {
+        found.set(isbn, info);
+      }
+    }
+  }
+  return found;
+}
+
+const normTitle = (t) => String(t || '').toLowerCase().replace(/^the\s+/, '').replace(/[^\p{L}\p{N}\s]/gu, '').replace(/\s+/g, ' ').trim();
+// Match on the main title: Goodreads keeps subtitles ("Sapiens: A Brief
+// History of Humankind") that Open Library often files separately.
+const mainTitle = (t) => String(t || '').split(':')[0].trim();
+
+/**
+ * Fallback for books with no ISBN (Kindle editions, mostly): one query covers
+ * up to ~10 `(title:"…" AND author:"…")` clauses. A hit must match the main
+ * title exactly; among matches the most-published work with a cover wins, which
+ * skips box sets and translations.
+ * @param {Array<{key: string, title: string, author?: string}>} items
+ * @returns {Promise<Map<string, {artwork_url, genre, page_count}>>} keyed by item.key
+ * @throws on network/HTTP failure
+ */
+export async function lookupByTitles(items, { signal } = {}) {
+  const found = new Map();
+  const usable = items.filter((i) => mainTitle(i.title));
+  if (usable.length === 0) return found;
+
+  const clause = (i) => {
+    const title = mainTitle(i.title).replace(/"/g, '');
+    const surname = String(i.author || '').split(',')[0].trim().split(/\s+/).pop()?.replace(/"/g, '');
+    return surname ? `(title:"${title}" AND author:"${surname}")` : `(title:"${title}")`;
+  };
+  const params = new URLSearchParams({
+    q: usable.map(clause).join(' OR '),
+    fields: 'title,cover_i,subject,number_of_pages_median,edition_count',
+    limit: String(usable.length * 6),
+  });
+  const response = await fetch(`${SEARCH_URL}?${params}`, { signal });
+  if (!response.ok) throw new Error(`Book lookup failed (${response.status})`);
+  const docs = (await response.json()).docs || [];
+
+  for (const item of usable) {
+    const want = normTitle(mainTitle(item.title));
+    const best = docs
+      .filter((d) => d.cover_i && normTitle(mainTitle(d.title)) === want)
+      .sort((a, b) => (b.edition_count || 0) - (a.edition_count || 0))[0];
+    if (best) {
+      found.set(item.key, {
+        artwork_url: coverUrl(best.cover_i),
+        genre: mapSubjectsToGenre(best.subject || []),
+        page_count: typeof best.number_of_pages_median === 'number' ? best.number_of_pages_median : null,
+      });
+    }
+  }
+  return found;
+}

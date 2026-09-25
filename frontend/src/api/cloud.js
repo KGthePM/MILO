@@ -426,6 +426,20 @@ export const bookApi = {
     return computeAnalytics(rows, 'book');
   },
   getRecommendations: (params = {}) => movieApi.getRecommendations({ ...params, content: 'book' }),
+  // Bulk insert for the Goodreads import. Rows arrive already de-duped against
+  // the library (goodreadsClient.processGoodreadsRows).
+  async importBooks(books) {
+    const sb = getSupabase();
+    const user_id = await requireUserId();
+    const rows = books.map((b) => normalizeDateFields({ ...b, type: 'book', user_id }));
+    let imported = 0;
+    for (let i = 0; i < rows.length; i += 200) {
+      const { error } = await sb.from(TABLE).insert(rows.slice(i, i + 200));
+      if (error) throw new Error(error.message);
+      imported += Math.min(200, rows.length - i);
+    }
+    return { imported };
+  },
 };
 
 export const assistantApi = {

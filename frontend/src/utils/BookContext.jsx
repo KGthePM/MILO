@@ -60,6 +60,12 @@ export const BookProvider = ({ children }) => {
     await fetchAnalytics();
   };
 
+  // After a bulk change (the Goodreads import) both the list and the stats move.
+  const refreshBooks = async () => {
+    await fetchBooks();
+    await fetchAnalytics();
+  };
+
   useEffect(() => {
     fetchBooks();
     fetchAnalytics();
@@ -72,6 +78,7 @@ export const BookProvider = ({ children }) => {
       loading,
       error,
       fetchBooks,
+      refreshBooks,
       addBook,
       updateBook,
       updateBookStatus,

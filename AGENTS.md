@@ -169,6 +169,7 @@ Optional: `VITE_TMDB_TOKEN` (enables the movie/TV Find lookup; works in local mo
 # Import / Migration
 
 - Letterboxd import: parsed client-side in `frontend/src/api/letterboxdClient.js` (local → backend API; cloud → direct Supabase inserts).
+- Goodreads import: `components/books/GoodreadsImportModal.jsx` (Settings → Data, and the empty Books library) + `frontend/src/api/goodreadsClient.js`, parsed client-side in both modes. Shelves map read → `watched`, to-read / currently-reading → `to_watch`; stars ×2; custom exclusive shelves and read-but-unrated rows are skipped and counted (MILO requires a rating on `watched`). Covers are resolved at import time in two batched Open Library passes — `lookupByIsbns` (40 ISBNs per `isbn:(… OR …)` query), then `lookupByTitles` for rows with no ISBN (Kindle editions) — never one request per book. Written via `bookApi.importBooks`: chunked bulk insert in cloud, sequential POSTs in local (no bulk backend route).
 - Migrate local SQLite → Supabase: `node scripts/migrate-sqlite-to-supabase.js --user-id <auth-uid>` (needs `SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY` env).
 - In-app local→cloud migration parses the uploaded `movies.db` **client-side**: `frontend/src/api/dbClient.js` bundles sql.js as WASM (`sql.js/dist/sql-wasm.wasm?url`) so `cloud.js` can read the SQLite file in the browser — no backend involved.
 

@@ -92,6 +92,8 @@ function GhostCards({ ring }) {
  * @param {string}   [props.body]       override the sub-line
  * @param {string}   [props.actionLabel] override the button label
  * @param {boolean}  [props.showGhosts] override whether ghost cards render
+ * @param {{label: string, onClick: function}} [props.secondaryAction] quieter
+ *   second way in, shown under the main button (not on the filtered variant)
  */
 export default function EmptyState({
   contentType = 'movie',
@@ -104,6 +106,7 @@ export default function EmptyState({
   body,
   actionLabel,
   showGhosts,
+  secondaryAction,
 }) {
   const type = getContentType(contentType);
   const a = (accent && ACCENT[accent]) || accentFor(contentType);
@@ -160,6 +163,15 @@ export default function EmptyState({
           >
             <ActionIcon size={15} />
             {copy.action}
+          </button>
+        )}
+
+        {secondaryAction && !filtered && (
+          <button
+            onClick={secondaryAction.onClick}
+            className={`mt-3 text-xs text-white/50 underline-offset-4 hover:underline transition-colors ${a.hoverText}`}
+          >
+            {secondaryAction.label}
           </button>
         )}
       </div>

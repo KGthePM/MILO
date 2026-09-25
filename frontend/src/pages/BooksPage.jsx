@@ -5,6 +5,7 @@ import { useBooks } from '../utils/BookContext';
 import BookCard from '../components/books/BookCard';
 import AddBookModal from '../components/books/AddBookModal';
 import EditBookModal from '../components/books/EditBookModal';
+import GoodreadsImportModal from '../components/books/GoodreadsImportModal';
 import BookTimeline from '../components/books/BookTimeline';
 import BookRecommendations from '../components/books/BookRecommendations';
 import SearchFilter from '../components/shared/SearchFilter';
@@ -32,6 +33,7 @@ export default function BooksPage() {
   const [activeTab, setActiveTab] = useState('books');
   const [showAddModal, setShowAddModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
+  const [showGoodreads, setShowGoodreads] = useState(false);
   const [editingBook, setEditingBook] = useState(null);
   const [filterParams, setFilterParams] = useState({ sortBy: 'most_recent' });
   const [searchTerm, setSearchTerm] = useState('');
@@ -136,6 +138,7 @@ export default function BooksPage() {
                 variant={filtersActive ? 'filtered' : 'library'}
                 onAction={() => setShowAddModal(true)}
                 onClear={handleClearFilters}
+                secondaryAction={{ label: 'or import your Goodreads library', onClick: () => setShowGoodreads(true) }}
               />
             ) : (
               <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
@@ -308,6 +311,7 @@ export default function BooksPage() {
         onClose={() => setShowAddModal(false)}
         defaultStatus={activeTab === 'to_read' ? 'to_watch' : 'watched'}
       />
+      <GoodreadsImportModal isOpen={showGoodreads} onClose={() => setShowGoodreads(false)} />
       <EditBookModal
         isOpen={showEditModal}
         onClose={() => setShowEditModal(false)}
