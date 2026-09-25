@@ -257,13 +257,133 @@ const astroCat = {
   },
 };
 
+const clapper = {
+  id: 'clapper',
+  kind: 'sky',
+  draw(ctx, s, t) {
+    backing(ctx, -30, -12, 60, 40, 3);
+    ctx.beginPath();
+    roundRect(ctx, -30, -12, 60, 40, 3);
+    glow(ctx, s, CYAN);
+    // The clap stick snaps shut on a loop.
+    const open = Math.max(0, Math.sin(t * 5)) * 0.45;
+    ctx.save();
+    ctx.translate(-30, -12);
+    ctx.rotate(-open);
+    ctx.beginPath();
+    ctx.rect(0, -9, 60, 9);
+    for (let i = 0; i < 4; i++) { ctx.moveTo(8 + i * 14, -9); ctx.lineTo(14 + i * 14, 0); }
+    glow(ctx, s, CYAN);
+    ctx.restore();
+    text(ctx, 'TAKE 47', 0, 3, 9, WHITE);
+    text(ctx, 'SCENE: ???', 0, 16, 6.5, WHITE);
+  },
+};
+
+const filmReel = {
+  id: 'film-reel',
+  kind: 'sky',
+  spin: true,
+  draw(ctx, s) {
+    ctx.beginPath();
+    ctx.moveTo(26, 0); ctx.arc(0, 0, 26, 0, Math.PI * 2);
+    ctx.moveTo(5, 0); ctx.arc(0, 0, 5, 0, Math.PI * 2);
+    for (let i = 0; i < 5; i++) {
+      const a = (i / 5) * Math.PI * 2;
+      const x = Math.cos(a) * 15, y = Math.sin(a) * 15;
+      ctx.moveTo(x + 6, y); ctx.arc(x, y, 6, 0, Math.PI * 2);
+    }
+    glow(ctx, s, CYAN);
+  },
+};
+
+const retroTv = {
+  id: 'retro-tv',
+  kind: 'sky',
+  draw(ctx, s) {
+    backing(ctx, -34, -22, 68, 48, 6);
+    ctx.beginPath();
+    roundRect(ctx, -34, -22, 68, 48, 6);
+    roundRect(ctx, -28, -16, 46, 36, 5);
+    ctx.moveTo(28, -8); ctx.arc(26, -8, 2, 0, Math.PI * 2);
+    ctx.moveTo(28, 2); ctx.arc(26, 2, 2, 0, Math.PI * 2);
+    // Rabbit ears and little feet.
+    ctx.moveTo(-4, -22); ctx.lineTo(-16, -40);
+    ctx.moveTo(4, -22); ctx.lineTo(14, -42);
+    ctx.moveTo(-24, 26); ctx.lineTo(-26, 32);
+    ctx.moveTo(24, 26); ctx.lineTo(26, 32);
+    glow(ctx, s, MAGENTA);
+    text(ctx, 'Still', -5, -6, 8, WHITE);
+    text(ctx, 'watching?', -5, 6, 8, WHITE);
+  },
+};
+
+const headphones = {
+  id: 'headphones',
+  kind: 'sky',
+  draw(ctx, s) {
+    ctx.beginPath();
+    ctx.moveTo(-24, 6); ctx.arc(0, 6, 24, Math.PI, 0);
+    roundRect(ctx, -30, 2, 12, 22, 5);
+    roundRect(ctx, 18, 2, 12, 22, 5);
+    glow(ctx, s, PURPLE);
+    backing(ctx, -18, 30, 36, 14, 7);
+    ctx.beginPath();
+    roundRect(ctx, -18, 30, 36, 14, 7);
+    glow(ctx, s, WHITE);
+    text(ctx, '1.75×', 0, 37, 8, WHITE);
+  },
+};
+
+const bookStack = {
+  id: 'book-stack',
+  kind: 'sky',
+  draw(ctx, s) {
+    ctx.beginPath();
+    roundRect(ctx, -30, 14, 60, 12, 2);
+    roundRect(ctx, -24, 2, 50, 12, 2);
+    roundRect(ctx, -28, -10, 54, 12, 2);
+    roundRect(ctx, -20, -22, 44, 12, 2);
+    roundRect(ctx, -26, -34, 50, 12, 2);
+    glow(ctx, s, ORANGE);
+    backing(ctx, -24, 30, 48, 14, 3);
+    text(ctx, 'TBR: 412', 0, 37, 8, WHITE);
+  },
+};
+
+const ufo = {
+  id: 'ufo',
+  kind: 'sky',
+  draw(ctx, s, t) {
+    ctx.beginPath();
+    ctx.ellipse(0, 0, 32, 9, 0, 0, Math.PI * 2);
+    ctx.moveTo(14, -4); ctx.arc(0, -4, 14, 0, Math.PI, true);
+    glow(ctx, s, WHITE);
+    // Tractor beam, lifting a stray popcorn kernel.
+    ctx.beginPath();
+    ctx.moveTo(-10, 8); ctx.lineTo(-22, 50);
+    ctx.moveTo(10, 8); ctx.lineTo(22, 50);
+    glow(ctx, s, CYAN);
+    const k = 44 - ((t * 18) % 36);
+    ctx.beginPath();
+    ctx.moveTo(4, k); ctx.arc(0, k, 4, 0, Math.PI * 2);
+    glow(ctx, s, WHITE);
+  },
+};
+
 const POOL = [
   sign('speed-limit', [{ t: 'SPEED', size: 8 }, { t: 'LIMIT', size: 8 }, { t: '88', size: 22 }]),
   sign('last-exit', [{ t: 'LAST EXIT', size: 9 }, { t: 'BEFORE SPOILERS', size: 9 }]),
   sign('now-leaving', [{ t: 'NOW LEAVING', size: 7 }, { t: 'YOUR WATCHLIST', size: 10 }]),
   sign('no-skipping', [{ t: 'NO SKIPPING', size: 9 }, { t: 'THE INTRO', size: 9 }]),
   sign('buffering', [{ t: 'BUFFERING…', size: 10 }, { t: 'jk', size: 8 }]),
+  sign('plot-twist', [{ t: 'CAUTION', size: 8 }, { t: 'PLOT TWIST AHEAD', size: 9 }]),
+  sign('one-more', [{ t: 'ONE MORE EPISODE', size: 9 }, { t: 'NEXT 40 EXITS', size: 7 }]),
+  sign('third-act', [{ t: 'WELCOME TO', size: 7 }, { t: 'THE THIRD ACT', size: 10 }]),
+  sign('book-better', [{ t: 'THE BOOK', size: 9 }, { t: 'WAS BETTER →', size: 9 }]),
+  sign('sequel', [{ t: 'ROAD CLOSED', size: 9 }, { t: 'FOR SEQUEL', size: 8 }]),
   vhs, popcorn, remote, mic, book, astroCat,
+  clapper, filmReel, retroTv, headphones, bookStack, ufo,
 ];
 
 // MILO's own wordmark colours: YOU ARE in cyan, HERE in magenta.
@@ -285,14 +405,16 @@ const Z_MID = 3;
 const PERIPHERY = 0.7;
 const MID_WIDTH_FRAC = 0.22;
 
-// Warp: three eggs through launch and cruise, landing before the exit flash.
-// Timings are fractions of the caller's warp duration.
-const WARP_SLOTS = [0.14, 0.33, 0.52];
+// Warp: six eggs through launch and cruise, alternating sides, the last
+// landing before the exit flash. Timings are fractions of the caller's warp
+// duration. Flights overlap, but an egg is tiny for its first half, so only
+// two or three are ever big enough to read at once.
+const WARP_SLOTS = [0.12, 0.20, 0.28, 0.36, 0.44, 0.52];
 const WARP_FLIGHT = 0.44;
 
-// Idle: one at a time, the first well after the boot flare has settled.
-const IDLE_FIRST_MS = [6000, 9000];
-const IDLE_GAP_MS = [10000, 18000];
+// Idle: one at a time, the first once the boot flare has settled.
+const IDLE_FIRST_MS = [3500, 5000];
+const IDLE_GAP_MS = [5000, 9000];
 const IDLE_FLIGHT_MS = 3600;
 const IDLE_ALPHA = 0.7;
 
@@ -330,7 +452,7 @@ export function createEggDirector({ idle = false } = {}) {
   return {
     startWarp(now, warpMs) {
       warped = true;
-      const rareSlot = Math.random() < RARE_ODDS ? 1 : -1;
+      const rareSlot = Math.random() < RARE_ODDS ? 3 : -1;  // mid-cruise, when it is easiest to catch
       WARP_SLOTS.forEach((at, i) => {
         launch(i === rareSlot ? RARE : nextEgg(), now + at * warpMs, WARP_FLIGHT * warpMs, 1);
       });
