@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Send, Brain, Loader2, AlertCircle, Plus } from 'lucide-react';
 import { assistantApi } from '../../api/assistantApi';
@@ -6,6 +6,11 @@ import { useMovies } from '../../utils/MovieContext';
 import { useTVSeries } from '../../utils/TVSeriesContext';
 import { usePodcasts } from '../../utils/PodcastContext';
 import { useBooks } from '../../utils/BookContext';
+import { useAddToList } from '../../utils/useAddToList';
+import { api as feedbackApi } from '../../api/feedbackApi';
+import { normalizeTitle } from '../../ai/prompt';
+import { IS_CLOUD } from '../../utils/mode';
+import AssistantReply from './AssistantReply';
 
 const quickActions = [
   'Find similar movies',
@@ -60,6 +65,81 @@ export default function AssistantModal({ isOpen, onClose }) {
       averageRating: totalWatched ? ratingSum / totalWatched : 0,
     };
   })();
+
+  // What the library already says about a title, keyed like parsed picks
+  // (`${type}:${normalizedTitle}`) — 'watched' wins over 'to_watch'.
+  const libraryStatus = useMemo(() => {
+    const map = new Map();
+    const lists = { movie: movies, tv: series, podcast: podcasts, book: books };
+    for (const [type, rows] of Object.entries(lists)) {
+      for (const row of rows || []) {
+        const key = `${type}:${normalizeTitle(row.title)}`;
+        if (map.get(key) !== 'watched') map.set(key, row.status === 'watched' ? 'watched' : 'to_watch');
+      }
+    }
+    return map;
+  }, [movies, series, podcasts, books]);
+
+  // Picks added from chat this session: key → { busy } | { addedId }.
+  // Only these can be undone; a row that was already in the library can't.
+  const { addToList, removeFromList } = useAddToList();
+  const [sessionPicks, setSessionPicks] = useState({});
+
+  const pickState = (pick) => {
+    const s = sessionPicks[pick.key];
+    if (s?.busy) return 'busy';
+    if (s) return 'added';
+    const lib = libraryStatus.get(pick.key);
+    if (lib === 'watched') return 'done';
+    if (lib === 'to_watch') return 'onList';
+    return 'idle';
+  };
+
+  const handleTogglePick = async (pick, { artwork_url }) => {
+    const current = sessionPicks[pick.key];
+    if (current?.busy) return;
+    const setPick = (value) => setSessionPicks((m) => {
+      const next = { ...m };
+      if (value) next[pick.key] = value; else delete next[pick.key];
+      return next;
+    });
+
+    if (current) {
+      setPick({ busy: true });
+      try {
+        await removeFromList(pick.type, current.addedId);
+        setPick(null);
+        if (IS_CLOUD) feedbackApi.remove({ title: pick.title, contentType: pick.type }).catch(() => {});
+      } catch (err) {
+        setPick(current);
+        setError(`Couldn't remove ${pick.title}: ${err.message}`);
+      }
+      return;
+    }
+
+    setPick({ busy: true });
+    try {
+      const addedId = await addToList(pick.type, { title: pick.title, year: pick.year, artwork_url });
+      // null → it was already in the library; the refreshed library status
+      // takes over from here and there's nothing of ours to undo.
+      setPick(addedId == null ? null : { addedId });
+      // Same taste signal as a thumbs-up on the Recommendations page. Cloud
+      // only (local feedback isn't implemented) and never blocks the add.
+      if (IS_CLOUD) {
+        feedbackApi.record({
+          title: pick.title,
+          contentType: pick.type,
+          feedback: 'interested',
+          year: pick.year ? Number(pick.year) || null : null,
+          recType: 'assistant',
+          model: selectedModel || null,
+        }).catch(() => {});
+      }
+    } catch (err) {
+      setPick(null);
+      setError(`Couldn't add ${pick.title}: ${err.message}`);
+    }
+  };
 
   useEffect(() => {
     const fetchModels = async () => {
@@ -267,25 +347,27 @@ export default function AssistantModal({ isOpen, onClose }) {
                   className="bg-purple-500/10 border border-purple-500/20 rounded-lg p-4"
                 >
                   <p className="text-white/90 text-sm leading-relaxed">
-                    Hello! I'm <strong className="text-purple-400">MILO</strong>, your AI assistant. How can I help you discover your next favorite movie or TV show?
+                    I'm <strong className="text-purple-400">MILO</strong>. Ask for something to watch, hear or read — anything I suggest can go straight onto your list.
                   </p>
                 </motion.div>
               )}
 
-              {messages.map((m, idx) => (
+              {messages.map((m, idx) => m.role === 'assistant' ? (
                 <motion.div
                   key={`${m.ts}-${idx}`}
                   initial={{ opacity: 0, y: 8 }}
                   animate={{ opacity: 1, y: 0 }}
-                  className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}
                 >
-                  <div
-                    className={`max-w-[85%] rounded-lg p-3 text-sm leading-relaxed whitespace-pre-wrap ${
-                      m.role === 'user'
-                        ? 'bg-gradient-to-r from-purple-500/30 to-pink-500/30 border border-purple-500/30 text-white'
-                        : 'bg-white/5 border border-white/10 text-white/90'
-                    }`}
-                  >
+                  <AssistantReply message={m} pickState={pickState} onTogglePick={handleTogglePick} />
+                </motion.div>
+              ) : (
+                <motion.div
+                  key={`${m.ts}-${idx}`}
+                  initial={{ opacity: 0, y: 8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="flex justify-end"
+                >
+                  <div className="max-w-[85%] rounded-lg p-3 text-sm leading-relaxed whitespace-pre-wrap bg-gradient-to-r from-purple-500/30 to-pink-500/30 border border-purple-500/30 text-white">
                     {m.content}
                   </div>
                 </motion.div>

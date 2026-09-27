@@ -96,6 +96,8 @@ export const ACCENT = {
     tileSoft: 'bg-neon-cyan/10',
     iconSoft: 'text-neon-cyan/70',
     edgeSoft: 'border-neon-cyan/30',
+    // Underline tint for inline title links (the assistant's tagged picks).
+    underline: 'decoration-neon-cyan/50',
   },
   magenta: {
     text: 'text-neon-magenta',
@@ -120,6 +122,7 @@ export const ACCENT = {
     tileSoft: 'bg-neon-magenta/10',
     iconSoft: 'text-neon-magenta/70',
     edgeSoft: 'border-neon-magenta/30',
+    underline: 'decoration-neon-magenta/50',
   },
   purple: {
     text: 'text-neon-purple',
@@ -144,6 +147,7 @@ export const ACCENT = {
     tileSoft: 'bg-neon-purple/10',
     iconSoft: 'text-neon-purple/70',
     edgeSoft: 'border-neon-purple/30',
+    underline: 'decoration-neon-purple/50',
   },
   orange: {
     text: 'text-neon-orange',
@@ -168,6 +172,7 @@ export const ACCENT = {
     tileSoft: 'bg-neon-orange/10',
     iconSoft: 'text-neon-orange/70',
     edgeSoft: 'border-neon-orange/30',
+    underline: 'decoration-neon-orange/50',
   },
 };
 

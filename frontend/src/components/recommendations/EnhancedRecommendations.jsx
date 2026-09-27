@@ -6,10 +6,6 @@ import { tvApi } from '../../api/tvApi';
 import { api as tasteApi } from '../../api/tasteApi';
 import { api as feedbackApi } from '../../api/feedbackApi';
 import { normalizeTitle } from '../../ai/prompt';
-import { useMovies } from '../../utils/MovieContext';
-import { useTVSeries } from '../../utils/TVSeriesContext';
-import { usePodcasts } from '../../utils/PodcastContext';
-import { useBooks } from '../../utils/BookContext';
 import { IS_CLOUD } from '../../utils/mode';
 import { loadAISettings, getActiveKey } from '../../utils/aiSettings';
 import { PRESETS } from '../../recommendations/presets';
@@ -24,17 +20,12 @@ import AddPodcastModal from '../podcasts/AddPodcastModal';
 import AddBookModal from '../books/AddBookModal';
 import AIProvidersHelpModal from '../settings/AIProvidersHelpModal';
 import DiscoveryHint from '../onboarding/DiscoveryHint';
+import { useAddToList } from '../../utils/useAddToList';
 
 // Per-content-type wiring. These replace the `contentType === 'tv' ? … : …`
 // ternaries that used to run through this file, which silently treated any
 // third type as a movie.
 const API_BY_TYPE = { movie: movieApi, tv: tvApi, podcast: podcastApi, book: bookApi };
-const ADD_BY_TYPE = {
-  movie: (payload) => movieApi.addMovie(payload),
-  tv: (payload) => tvApi.addSeries(payload),
-  podcast: (payload) => podcastApi.addPodcast(payload),
-  book: (payload) => bookApi.addBook(payload),
-};
 const SEEN_IT_MODALS = { movie: AddMovieModal, tv: AddTVSeriesModal, podcast: AddPodcastModal, book: AddBookModal };
 
 function formatWhen(ts) {
@@ -102,14 +93,7 @@ export default function EnhancedRecommendations({ contentType = 'movie' }) {
   // Bumped per fetch (and on unmount) so late lookups from an older run are dropped.
   const artRunRef = useRef(0);
   useEffect(() => () => { artRunRef.current += 1; }, []);
-  const { fetchMovies, deleteMovie } = useMovies();
-  const { fetchSeries, deleteSeries } = useTVSeries();
-  const { fetchPodcasts, deletePodcast } = usePodcasts();
-  const { fetchBooks, deleteBook } = useBooks();
-
-  // Context-bound counterparts to the module-level maps above.
-  const REMOVE_BY_TYPE = { movie: deleteMovie, tv: deleteSeries, podcast: deletePodcast, book: deleteBook };
-  const REFRESH_BY_TYPE = { movie: fetchMovies, tv: fetchSeries, podcast: fetchPodcasts, book: fetchBooks };
+  const { addToList, removeFromList } = useAddToList();
 
   const contentLabel = getContentType(contentType).nav;
   const A = accentFor(contentType);
@@ -244,7 +228,7 @@ export default function EnhancedRecommendations({ contentType = 'movie' }) {
       // (never touches a pre-existing watchlist entry).
       const removeAdded = async () => {
         if (current?.feedback === 'interested' && current.addedId) {
-          await REMOVE_BY_TYPE[ct]?.(current.addedId);
+          await removeFromList(ct, current.addedId);
         }
       };
 
@@ -274,20 +258,12 @@ export default function EnhancedRecommendations({ contentType = 'movie' }) {
 
       let addedId = null;
       if (verb === 'interested') {
-        try {
-          const payload = {
-            title: rec.title,
-            genre: rec.genre || null,
-            release_year: rec.year ? Number(rec.year) || null : null,
-            artwork_url: artByKey[key]?.artwork_url || null,
-            status: 'to_watch',
-          };
-          const created = await ADD_BY_TYPE[ct](payload);
-          addedId = created?.id ?? null;
-          await REFRESH_BY_TYPE[ct]();
-        } catch (e) {
-          if (e?.status !== 409) throw e; // already in library — treat as success
-        }
+        addedId = await addToList(ct, {
+          title: rec.title,
+          genre: rec.genre || null,
+          year: rec.year,
+          artwork_url: artByKey[key]?.artwork_url || null,
+        });
       }
       setFeedbackMap((m) => ({ ...m, [key]: { feedback: verb, addedId } }));
 

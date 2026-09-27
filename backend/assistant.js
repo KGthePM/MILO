@@ -116,6 +116,13 @@ Guidelines:
 - If they have no history, suggest popular titles to get started
 - Be encouraging about their viewing journey
 
+Tagging recommendations:
+- Wrap every title you RECOMMEND in double brackets with its type and year: [[Title|type|year]]
+- type is exactly one of: movie, tv, podcast, book. Year is the release / first-published year; leave it empty if unsure: [[Title|podcast|]]
+- Only tag new suggestions. Titles already in the user's library are mentioned plainly, untagged.
+- Tag each title once, inline where it reads naturally. The app turns tags into one-tap "add to list" buttons, so never mention the brackets.
+- Example: If Arrival stayed with you, try [[Annihilation|movie|2018]] — and the novella behind Arrival, [[Stories of Your Life and Others|book|2002]].
+
 Context about the user:
 ${context}`;
 
