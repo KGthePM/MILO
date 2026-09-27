@@ -226,6 +226,8 @@ function buildTasteAnalysisPrompt(digest, contentLabel = 'movies, TV, podcasts &
 
 Base every field strictly on the evidence in the digest — especially what they rate highly versus poorly. Do not invent facts. Be specific and vivid, not generic.
 
+Keep it tight: persona under 30 words, summary under 60 words, every array at most 5 short items, every other string under 25 words.
+
 Return ONLY valid JSON in this exact shape:
 {
   "persona": "short vivid label + 1-2 sentence description",
@@ -309,6 +311,78 @@ function parseTasteProfileJSON(text) {
     } catch { /* try next */ }
   }
 
+  // Salvage: token caps can cut the response off mid-JSON, so the top-level
+  // object never closes. Recover the fields that did arrive.
+  const salvaged = salvageTruncatedObject(cleaned);
+  if (isProfile(salvaged)) return salvaged;
+
+  return null;
+}
+
+// Close a JSON object that was truncated mid-stream. First try closing it
+// exactly where it stops (finishing an open string), then walk back one
+// comma at a time — dropping the half-written member — until it parses.
+function salvageTruncatedObject(text) {
+  const start = text.indexOf('{');
+  if (start === -1) return null;
+  const body = text.slice(start);
+
+  // Scan the prefix up to `end`: open-bracket stack + string/escape state.
+  const stateAt = (end) => {
+    const stack = [];
+    let inString = false;
+    let escaped = false;
+    for (let i = 0; i < end; i++) {
+      const ch = body[i];
+      if (inString) {
+        if (escaped) escaped = false;
+        else if (ch === '\\') escaped = true;
+        else if (ch === '"') inString = false;
+        continue;
+      }
+      if (ch === '"') inString = true;
+      else if (ch === '{' || ch === '[') stack.push(ch);
+      else if (ch === '}' || ch === ']') stack.pop();
+    }
+    return { stack, inString, escaped };
+  };
+
+  const tryClose = (end) => {
+    const { stack, inString, escaped } = stateAt(end);
+    if (!stack.length) return null;
+    let head = body.slice(0, escaped ? end - 1 : end);
+    if (inString) head += '"';
+    const closers = stack.reverse().map((c) => (c === '{' ? '}' : ']')).join('');
+    try { return JSON.parse(head + closers); } catch { return null; }
+  };
+
+  // Comma positions outside strings, latest first.
+  const commas = [];
+  let inString = false;
+  let escaped = false;
+  for (let i = 0; i < body.length; i++) {
+    const ch = body[i];
+    if (inString) {
+      if (escaped) escaped = false;
+      else if (ch === '\\') escaped = true;
+      else if (ch === '"') inString = false;
+      continue;
+    }
+    if (ch === '"') inString = true;
+    else if (ch === ',') commas.push(i);
+  }
+
+  const cuts = [body.length, ...commas.reverse()].slice(0, 50);
+  for (const end of cuts) {
+    const parsed = tryClose(end);
+    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+      // A cut just past an opening quote leaves an empty item — drop it.
+      for (const key of Object.keys(parsed)) {
+        if (Array.isArray(parsed[key])) parsed[key] = parsed[key].filter((v) => v !== '');
+      }
+      return parsed;
+    }
+  }
   return null;
 }
 
