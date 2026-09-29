@@ -1,13 +1,13 @@
 const API_BASE = '/api';
 
 export const assistantApi = {
-  // `options` (e.g. { onToken }) is accepted for signature parity with the
-  // cloud client; the local backend returns the reply in one piece.
-  async chatWithAssistant(message, model = null, movies = [], tvSeries = [], podcasts = [], books = [], analytics = null, history = [], options = {}) { // eslint-disable-line no-unused-vars
+  // `onToken` is accepted for signature parity with the cloud client; the
+  // local backend returns the reply in one piece.
+  async chatWithAssistant(message, model = null, movies = [], tvSeries = [], podcasts = [], books = [], analytics = null, history = [], { recentlySuggested = [] } = {}) {
     const response = await fetch(`${API_BASE}/assistant/chat`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ message, model, movies, tvSeries, podcasts, books, analytics, history }),
+      body: JSON.stringify({ message, model, movies, tvSeries, podcasts, books, analytics, history, recentlySuggested }),
     });
     if (!response.ok) throw new Error('Failed to get response from MILO');
     return response.json();

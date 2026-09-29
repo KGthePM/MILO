@@ -638,7 +638,7 @@ router.post('/taste-profile', async (req, res) => {
 });
 
 router.post('/assistant/chat', async (req, res) => {
-  const { message, model, movies, tvSeries, podcasts, books, analytics, history } = req.body;
+  const { message, model, movies, tvSeries, podcasts, books, analytics, history, recentlySuggested } = req.body;
 
   if (!message || !message.trim()) {
     return res.status(400).json({ error: 'Message is required' });
@@ -650,7 +650,7 @@ router.post('/assistant/chat', async (req, res) => {
     if (tasteRow) {
       try { tasteProfile = JSON.parse(tasteRow.profile_json); } catch { tasteProfile = null; }
     }
-    const result = await assistant.generateResponse(message, movies || [], tvSeries || [], podcasts || [], books || [], analytics || null, model, history || [], tasteProfile);
+    const result = await assistant.generateResponse(message, movies || [], tvSeries || [], podcasts || [], books || [], analytics || null, model, history || [], tasteProfile, recentlySuggested || []);
     res.json(result);
   } catch (error) {
     console.error('MILO assistant error:', error.message);

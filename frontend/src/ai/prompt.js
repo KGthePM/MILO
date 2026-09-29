@@ -568,107 +568,193 @@ export function formatTasteProfileForPrompt(profile) {
   return `Here is my saved taste profile (a distilled read of my library — treat it as the primary guide):\n${lines.join('\n')}`;
 }
 
-export function buildAssistantPrompt(userMessage, movies = [], tvSeries = [], podcasts = [], books = [], analytics = null, history = [], tasteProfile = null) {
-  let context = 'User library:\n\n';
+// ---------------------------------------------------------------------------
+// Assistant (chat) prompt. Mirrored in backend/assistant.js — keep the
+// context blocks and the system-prompt wording in sync.
+// ---------------------------------------------------------------------------
 
-  if (movies.length > 0) {
-    const topMovies = [...movies]
-      .sort((a, b) => b.rating - a.rating)
-      .slice(0, 10)
-      .map(
-        (m) =>
-          `${m.title} (${m.rating}/10${m.genre ? ', ' + m.genre : ''}${m.director ? ', dir. ' + m.director : ''})`
-      )
-      .join('\n- ');
-    const genres = [...new Set(movies.map((m) => m.genre).filter(Boolean))];
-    const directors = [...new Set(movies.map((m) => m.director).filter(Boolean))];
-    context += `Top rated movies:\n- ${topMovies}\n`;
-    if (genres.length) context += `\nFavorite movie genres: ${genres.join(', ')}\n`;
-    if (directors.length) context += `Favorite directors: ${directors.join(', ')}\n`;
+const ASSISTANT_TYPES = [
+  { key: 'movie', label: 'movies', short: 'Movies' },
+  { key: 'tv', label: 'TV series', short: 'TV' },
+  { key: 'podcast', label: 'podcasts', short: 'Podcasts' },
+  { key: 'book', label: 'books', short: 'Books' },
+];
+
+// Words a request might use for a genre, keyed by the genre names MILO stores.
+// Genres in the user's library that aren't listed here still match by name.
+const GENRE_ALIASES = {
+  Comedy: ['comedy', 'comedies', 'comedic', 'funny', 'hilarious', 'laugh', 'laughs', 'sitcom', 'sitcoms', 'rom-com', 'rom-coms', 'romcom', 'romcoms'],
+  Horror: ['horror', 'horrors', 'scary', 'spooky', 'creepy', 'frightening', 'slasher', 'slashers'],
+  'Sci-Fi': ['sci-fi', 'scifi', 'sci fi', 'science fiction', 'space opera'],
+  Action: ['action', 'action-packed'],
+  Drama: ['drama', 'dramas', 'dramatic'],
+  Thriller: ['thriller', 'thrillers', 'suspense', 'suspenseful'],
+  Romance: ['romance', 'romances', 'romantic', 'love story', 'love stories', 'rom-com', 'rom-coms', 'romcom', 'romcoms'],
+  Animation: ['animation', 'animated', 'anime', 'cartoon', 'cartoons'],
+  Documentary: ['documentary', 'documentaries', 'docuseries', 'docs'],
+  Fantasy: ['fantasy'],
+  Mystery: ['mystery', 'mysteries', 'whodunit', 'whodunits', 'detective'],
+  'True Crime': ['true crime'],
+  'Young Adult': ['young adult'],
+  'Graphic Novel': ['graphic novel', 'graphic novels', 'comic', 'comics'],
+  'Biography & Memoir': ['biography', 'biographies', 'memoir', 'memoirs'],
+  Nonfiction: ['nonfiction', 'non-fiction'],
+  'Self-Help': ['self-help', 'self help'],
+};
+
+// Words that narrow a request to particular content types.
+const TYPE_HINTS = {
+  movie: /\b(movies?|films?|cinema|watch)\b/,
+  tv: /\b(tv|shows?|series|sitcoms?|watch|binge)\b/,
+  podcast: /\b(podcasts?|listen|listening)\b/,
+  book: /\b(books?|novels?|read|reading)\b/,
+};
+
+function escapeRegExp(s) {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function mentions(text, term) {
+  return new RegExp(`(^|[^a-z])${escapeRegExp(term)}([^a-z]|$)`).test(text);
+}
+
+const isRated = (m) => typeof m.rating === 'number' && !Number.isNaN(m.rating);
+const isWatched = (m) => (m.status || 'watched') === 'watched';
+
+// Which genres (and content types) the request is about, if any.
+export function detectRequestFocus(message, libraryGenres = []) {
+  const text = String(message || '').toLowerCase();
+  const genres = new Set();
+  for (const [genre, terms] of Object.entries(GENRE_ALIASES)) {
+    if (terms.some((t) => mentions(text, t))) genres.add(genre);
   }
-
-  if (tvSeries.length > 0) {
-    const topTV = [...tvSeries]
-      .sort((a, b) => b.rating - a.rating)
-      .slice(0, 10)
-      .map(
-        (t) =>
-          `${t.title} (${t.rating}/10${t.genre ? ', ' + t.genre : ''}${t.num_seasons ? ', ' + t.num_seasons + ' seasons' : ''})`
-      )
-      .join('\n- ');
-    const tvGenres = [...new Set(tvSeries.map((t) => t.genre).filter(Boolean))];
-    context += `\nTop rated TV series:\n- ${topTV}\n`;
-    if (tvGenres.length) context += `\nFavorite TV genres: ${tvGenres.join(', ')}\n`;
+  for (const g of libraryGenres) {
+    const lower = String(g).toLowerCase();
+    if (mentions(text, lower) || mentions(text, `${lower}s`)) genres.add(g);
   }
+  const types = Object.keys(TYPE_HINTS).filter((t) => TYPE_HINTS[t].test(text));
+  return { genres: [...genres], types };
+}
 
-  if (podcasts.length > 0) {
-    const topPodcasts = [...podcasts]
+// Every rated title in the genres the request names, high and low, so the
+// model can see which KIND of comedy (etc.) the user likes and can't hand back
+// titles they've already logged.
+export function buildFocusBlock(message, lists, { cap = 40 } = {}) {
+  const libraryGenres = [...new Set(ASSISTANT_TYPES.flatMap(({ key }) => (lists[key] || []).map((m) => m.genre).filter(Boolean)))];
+  const { genres, types } = detectRequestFocus(message, libraryGenres);
+  if (!genres.length) return '';
+  const inScope = ASSISTANT_TYPES.filter(({ key }) => !types.length || types.includes(key));
+  const parts = [];
+  for (const genre of genres) {
+    const g = genre.toLowerCase();
+    const rows = inScope
+      .flatMap(({ key }) => (lists[key] || [])
+        .filter((m) => isRated(m) && String(m.genre || '').toLowerCase() === g)
+        .map((m) => ({ ...m, _type: key })))
       .sort((a, b) => b.rating - a.rating)
-      .slice(0, 10)
-      .map(
-        (p) =>
-          `${p.title} (${p.rating}/10${p.genre ? ', ' + p.genre : ''}${p.host ? ', hosted by ' + p.host : ''})`
-      )
-      .join('\n- ');
-    const podcastGenres = [...new Set(podcasts.map((p) => p.genre).filter(Boolean))];
-    const hosts = [...new Set(podcasts.map((p) => p.host).filter(Boolean))];
-    context += `\nTop rated podcasts:\n- ${topPodcasts}\n`;
-    if (podcastGenres.length) context += `\nFavorite podcast genres: ${podcastGenres.join(', ')}\n`;
-    if (hosts.length) context += `Favorite podcast hosts: ${hosts.join(', ')}\n`;
+      .slice(0, cap);
+    if (rows.length) {
+      parts.push(`Every ${genre} title I've rated (high = the kind that works for me, low = the kind that doesn't):\n${rows
+        .map((m) => `- [${m._type}] ${formatDigestLine(m)}`)
+        .join('\n')}`);
+    } else {
+      parts.push(`I haven't logged any ${genre} yet — use my overall taste to judge which kind of ${genre} would suit me.`);
+    }
   }
+  return `FOCUS — this request is about ${genres.join(' / ')}:\n${parts.join('\n\n')}`;
+}
 
-  if (books.length > 0) {
-    const topBooks = [...books]
-      .sort((a, b) => b.rating - a.rating)
-      .slice(0, 10)
-      .map(
-        (b) =>
-          `${b.title} (${b.rating}/10${b.genre ? ', ' + b.genre : ''}${b.author ? ', by ' + b.author : ''})`
-      )
-      .join('\n- ');
-    const bookGenres = [...new Set(books.map((b) => b.genre).filter(Boolean))];
-    const authors = [...new Set(books.map((b) => b.author).filter(Boolean))];
-    context += `\nTop rated books:\n- ${topBooks}\n`;
-    if (bookGenres.length) context += `\nFavorite book genres: ${bookGenres.join(', ')}\n`;
-    if (authors.length) context += `Favorite authors: ${authors.join(', ')}\n`;
+function recentFirst(rows) {
+  const at = (m) => m.date_watched || m.created_at || '';
+  return [...rows].sort((a, b) => String(at(b)).localeCompare(String(at(a))));
+}
+
+function titleLines(lists, pick, cap) {
+  return ASSISTANT_TYPES
+    .map(({ key, short }) => {
+      const titles = [...new Set(recentFirst((lists[key] || []).filter(pick)).map((m) => m.title).filter(Boolean))].slice(0, cap);
+      return titles.length ? `${short}: ${titles.join('; ')}` : '';
+    })
+    .filter(Boolean)
+    .join('\n');
+}
+
+export const ASSISTANT_GUIDELINES = `Guidelines:
+- In conversation, keep replies focused and concise (2-4 sentences).
+- When I ask for recommendations, give 4-6 picks, each on its own line with a one-sentence reason that names a specific title from my library it connects to (e.g. "you gave Hot Fuzz a 9").
+- Personalize from the context below: my high AND low ratings, the FOCUS block when present, my taste profile, and my reactions to past recommendations.
+- Skip the default crowd-pleasers everyone gets recommended for a genre — only choose an obvious title when my history points straight at it. Make at least one pick a deeper cut I'm unlikely to have heard of, and vary eras, countries, and sub-genres.
+- Never suggest anything I've already watched, listened to, or read, anything already on my list, anything I rejected, or anything you suggested to me recently — all listed below. Check every pick against those lists before answering.
+- If I ask for a specific type ("movies", "shows", "podcasts", "books"), stick to it. Otherwise cross-media connections are welcome (a novel behind a film I loved, a show adapted from a book).
+- If I have no history, suggest popular, widely loved titles to get started.
+- Plain text only: no markdown bold or headings. A simple "- " list is fine.
+- Be encouraging about my viewing, listening, and reading.`;
+
+export const ASSISTANT_TAGGING = `Tagging recommendations:
+- Wrap every title you RECOMMEND in double brackets with its type and year: [[Title|type|year]]
+- type is exactly one of: movie, tv, podcast, book. Year is the release / first-published year; leave it empty if unsure: [[Title|podcast|]]
+- Only tag new suggestions. Titles already in the user's library are mentioned plainly, untagged.
+- Tag each title once, inline where it reads naturally. The app turns tags into one-tap "add to list" buttons, so never mention the brackets.
+- Example: If Arrival stayed with you, try [[Annihilation|movie|2018]] — and the novella behind Arrival, [[Stories of Your Life and Others|book|2002]].`;
+
+/**
+ * @param options.feedback           { interested, notForMe, seenIt } title lists (cloud)
+ * @param options.recentlySuggested  [{ title, type }] picks MILO made in recent chats
+ */
+export function buildAssistantPrompt(userMessage, movies = [], tvSeries = [], podcasts = [], books = [], analytics = null, history = [], tasteProfile = null, options = {}) {
+  const all = { movie: movies || [], tv: tvSeries || [], podcast: podcasts || [], book: books || [] };
+  // Only logged rows are taste signal; the watchlist is listed separately.
+  const watched = Object.fromEntries(Object.entries(all).map(([k, rows]) => [k, rows.filter(isWatched)]));
+  const hasHistory = Object.values(watched).some((rows) => rows.length);
+
+  const blocks = [];
+  for (const { key, label } of ASSISTANT_TYPES) {
+    if (watched[key].some(isRated)) blocks.push(buildLibraryDigest(watched[key], label, { sample: true }));
   }
 
   if (analytics) {
-    context += `\nTotal content watched: ${analytics.totalWatched || 0}\n`;
-    context += `Average rating: ${analytics.averageRating?.toFixed?.(1) || 'N/A'}/10\n`;
+    blocks.push(`Total logged: ${analytics.totalWatched || 0}. Average rating: ${analytics.averageRating?.toFixed?.(1) || 'N/A'}/10.`);
   }
 
   const profileText = formatTasteProfileForPrompt(tasteProfile);
-  if (profileText) context += `\n${profileText}\n`;
+  if (profileText) blocks.push(profileText);
+
+  const focus = buildFocusBlock(userMessage, watched);
+  if (focus) blocks.push(focus);
+
+  const feedbackBlock = formatRecFeedbackForPrompt(options.feedback);
+  if (feedbackBlock) blocks.push(feedbackBlock);
+
+  const seen = titleLines(watched, () => true, 200);
+  if (seen) blocks.push(`Already watched / listened to / read — NEVER suggest these, or remakes / re-releases of them:\n${seen}`);
+
+  const onList = titleLines(all, (m) => !isWatched(m), 150);
+  if (onList) blocks.push(`Already on my to-watch / to-listen / to-read list — don't suggest these as new picks (mention them untagged if relevant):\n${onList}`);
+
+  const recent = (Array.isArray(options.recentlySuggested) ? options.recentlySuggested : [])
+    .filter((p) => p && p.title)
+    .slice(0, 60)
+    .map((p) => `${p.title}${p.type ? ` (${p.type})` : ''}`);
+  if (recent.length) blocks.push(`You suggested these to me in recent chats — don't repeat them unless I ask for them by name:\n${recent.join('; ')}`);
+
+  const context = hasHistory || blocks.length ? blocks.join('\n\n') : 'The user has not logged anything yet.';
 
   const systemPrompt = `You are MILO (Media Intelligence & Learning Overseer), a sophisticated AI assistant for a personal movie, TV, podcast, and book tracking application.
 
 Your personality:
 - Professional, knowledgeable, and slightly witty
-- Helpful and concise in your responses
 - Deeply passionate about movies, TV shows, podcasts, and books
-- Like a friendly film critic or knowledgeable cinema enthusiast
+- Like a friendly critic with deep, eclectic taste — not a top-10 list
 
-Guidelines:
-- Keep responses focused and concise (2-4 sentences typically)
-- Be specific and personalized using their actual watching, listening, and reading history
-- Cross-media connections are welcome (a novel behind a film they loved, a show adapted from a book)
-- When recommending, explain WHY it fits their taste
-- If they have no history, suggest popular titles to get started
-- Be encouraging about their viewing journey
+${ASSISTANT_GUIDELINES}
 
-Tagging recommendations:
-- Wrap every title you RECOMMEND in double brackets with its type and year: [[Title|type|year]]
-- type is exactly one of: movie, tv, podcast, book. Year is the release / first-published year; leave it empty if unsure: [[Title|podcast|]]
-- Only tag new suggestions. Titles already in the user's library are mentioned plainly, untagged.
-- Tag each title once, inline where it reads naturally. The app turns tags into one-tap "add to list" buttons, so never mention the brackets.
-- Example: If Arrival stayed with you, try [[Annihilation|movie|2018]] — and the novella behind Arrival, [[Stories of Your Life and Others|book|2002]].
+${ASSISTANT_TAGGING}
 
 Context about the user:
 ${context}`;
 
-  const recent = Array.isArray(history) ? history.slice(-20) : [];
-  const transcriptLines = recent
+  const recentTurns = Array.isArray(history) ? history.slice(-20) : [];
+  const transcriptLines = recentTurns
     .filter((m) => m && m.content && (m.role === 'user' || m.role === 'assistant'))
     .map((m) => `${m.role === 'user' ? 'User' : 'MILO'}: ${m.content}`);
   const userPrompt = transcriptLines.length

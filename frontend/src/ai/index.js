@@ -154,13 +154,20 @@ export async function chatAssistant({
   analytics = null,
   history = [],
   tasteProfile = null,
+  // { interested, notForMe, seenIt } from rec_feedback (cloud only).
+  feedback = null,
+  // [{ title, type }] picks MILO made in recent chats (utils/assistantMemory).
+  recentlySuggested = [],
   settings = loadAISettings(),
   signal,
   // Called with (delta, textSoFar) as tokens arrive, for providers that
   // stream. Never called for the rest — their reply lands in one piece.
   onToken = null,
 } = {}) {
-  const { systemPrompt, userPrompt } = buildAssistantPrompt(message, movies, tvSeries, podcasts, books, analytics, history, tasteProfile);
+  const { systemPrompt, userPrompt } = buildAssistantPrompt(message, movies, tvSeries, podcasts, books, analytics, history, tasteProfile, {
+    feedback,
+    recentlySuggested,
+  });
   const provider = getProvider(settings.provider);
   const response = await provider.chatAssistant({
     systemPrompt,

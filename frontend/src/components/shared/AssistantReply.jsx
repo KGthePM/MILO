@@ -13,12 +13,17 @@ import CoverArt from './CoverArt';
 //
 // `pickState(pick)` → 'idle' | 'busy' | 'added' | 'onList' | 'done'
 // `onTogglePick(pick, { artwork_url })` adds, or undoes a session add.
-export default function AssistantReply({ message, pickState, onTogglePick }) {
+// `isRejected(pick)` → true for titles the user turned down; those render as
+// plain text with no rail card, even if the model ignored the exclusion.
+export default function AssistantReply({ message, pickState, onTogglePick, isRejected = () => false }) {
   const streaming = message.streaming === true;
-  const { segments, picks } = useMemo(
+  const parsed = useMemo(
     () => parseAssistantReply(message.content, { streaming }),
     [message.content, streaming]
   );
+  const segments = parsed.segments.map((seg) =>
+    seg.kind === 'title' && isRejected(seg) ? { kind: 'text', value: seg.title } : seg);
+  const picks = parsed.picks.filter((pick) => !isRejected(pick));
   const reduceMotion = useReducedMotion();
   const tileRefs = useRef({});
   const [flashKey, setFlashKey] = useState(null);

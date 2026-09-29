@@ -443,12 +443,20 @@ export const bookApi = {
 };
 
 export const assistantApi = {
-  async chatWithAssistant(message, model = null, movies = [], tvSeries = [], podcasts = [], books = [], analytics = null, history = [], { onToken = null } = {}) {
+  async chatWithAssistant(message, model = null, movies = [], tvSeries = [], podcasts = [], books = [], analytics = null, history = [], { onToken = null, recentlySuggested = [] } = {}) {
     const { chatAssistant } = await import('../ai');
     const settings = loadAISettings();
     if (model) settings.model = model;
     const tasteProfile = await loadSavedTasteProfile();
-    return chatAssistant({ message, movies, tvSeries, podcasts, books, analytics, history, tasteProfile, settings, onToken });
+    // Reactions from the Recommendations page (and chat adds) steer the chat
+    // too, so a thumbs-down there keeps a title out of MILO's answers.
+    let feedback = null;
+    try {
+      feedback = groupFeedback(await listFeedbackRows());
+    } catch (e) {
+      console.error('Failed to load rec feedback for assistant:', e.message);
+    }
+    return chatAssistant({ message, movies, tvSeries, podcasts, books, analytics, history, tasteProfile, feedback, recentlySuggested, settings, onToken });
   },
   async getOllamaModels() {
     return movieApi.getOllamaModels();

@@ -9,6 +9,8 @@ import { useBooks } from '../../utils/BookContext';
 import { useAddToList } from '../../utils/useAddToList';
 import { api as feedbackApi } from '../../api/feedbackApi';
 import { normalizeTitle } from '../../ai/prompt';
+import { parseAssistantReply } from '../../ai/assistantTags';
+import { loadRecentlySuggested, rememberSuggested } from '../../utils/assistantMemory';
 import { IS_CLOUD } from '../../utils/mode';
 import AssistantReply from './AssistantReply';
 
@@ -20,6 +22,13 @@ const quickActions = [
   'Recommend hidden gems',
   'Analyze my taste',
   'What should I watch this weekend?'
+];
+
+// Offered under a reply that carried picks. The prompt's don't-repeat memory
+// guarantees these come back with new titles.
+const followUps = [
+  { label: 'Different picks', message: "Give me different picks — nothing you've already suggested." },
+  { label: 'Deeper cuts', message: 'Go deeper — lesser-known picks in the same vein that I probably haven\'t heard of.' },
 ];
 
 const STORAGE_KEY = 'milo.conversation.v1';
@@ -79,6 +88,24 @@ export default function AssistantModal({ isOpen, onClose }) {
     }
     return map;
   }, [movies, series, podcasts, books]);
+
+  // Titles the user turned down ("not for me") on the Recommendations page.
+  // If MILO suggests one anyway, it shows as plain text, not an addable pick.
+  const [rejectedKeys, setRejectedKeys] = useState(() => new Set());
+  useEffect(() => {
+    if (!IS_CLOUD || !isOpen) return undefined;
+    let cancelled = false;
+    feedbackApi.list()
+      .then(({ feedback }) => {
+        if (cancelled) return;
+        setRejectedKeys(new Set((feedback || [])
+          .filter((r) => r.feedback === 'not_for_me')
+          .map((r) => `${r.content_type}:${normalizeTitle(r.title)}`)));
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [isOpen]);
+  const isRejected = (pick) => rejectedKeys.has(pick.key);
 
   // Picks added from chat this session: key → { busy } | { addedId }.
   // Only these can be undone; a row that was already in the library can't.
@@ -234,18 +261,20 @@ export default function AssistantModal({ isOpen, onClose }) {
         combinedBooks,
         combinedAnalytics,
         priorHistory,
-        { onToken }
+        { onToken, recentlySuggested: loadRecentlySuggested() }
       );
       const responseText = (result.response || '').trim();
       if (!responseText) {
         throw new Error('MILO returned an empty response. Try again or pick a different model.');
       }
       settleStreamedTurn(responseText);
+      rememberSuggested(parseAssistantReply(responseText).picks);
       setSelectedModel(result.modelUsed || selectedModel);
     } catch (err) {
       // Keep whatever streamed through before the failure — a partial answer
       // is more useful than an error on its own.
       settleStreamedTurn(streamedText.trim());
+      rememberSuggested(parseAssistantReply(streamedText).picks);
       setError(err.message);
     } finally {
       setLoading(false);
@@ -275,6 +304,9 @@ export default function AssistantModal({ isOpen, onClose }) {
   };
 
   const showIntro = messages.length === 0 && !loading && !error;
+  const lastMessage = messages[messages.length - 1];
+  const showFollowUps = !loading && lastMessage?.role === 'assistant'
+    && parseAssistantReply(lastMessage.content).picks.length > 0;
 
   return (
     <AnimatePresence>
@@ -358,7 +390,7 @@ export default function AssistantModal({ isOpen, onClose }) {
                   initial={{ opacity: 0, y: 8 }}
                   animate={{ opacity: 1, y: 0 }}
                 >
-                  <AssistantReply message={m} pickState={pickState} onTogglePick={handleTogglePick} />
+                  <AssistantReply message={m} pickState={pickState} onTogglePick={handleTogglePick} isRejected={isRejected} />
                 </motion.div>
               ) : (
                 <motion.div
@@ -419,6 +451,20 @@ export default function AssistantModal({ isOpen, onClose }) {
                     </button>
                   ))}
                 </div>
+              </div>
+            )}
+
+            {showFollowUps && (
+              <div className="mb-3 flex flex-wrap gap-2">
+                {followUps.map(({ label, message: followUp }) => (
+                  <button
+                    key={label}
+                    onClick={() => handleSubmit(followUp)}
+                    className="px-3 py-1.5 bg-white/5 hover:bg-white/10 border border-white/10 hover:border-purple-500/30 rounded-full text-xs text-white/80 hover:text-white transition-all"
+                  >
+                    {label}
+                  </button>
+                ))}
               </div>
             )}
 
