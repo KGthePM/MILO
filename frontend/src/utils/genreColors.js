@@ -13,6 +13,13 @@ export const SCREEN_GENRE_COLORS = {
   Fantasy: '#a855f7',
 };
 
+// TV-only genres. Reality (which also covers talk shows) is offered on TV but
+// not movies — reality films barely exist and would only clutter that picker.
+// Aqua, because it's the one hue the screen palette above doesn't already use.
+export const TV_GENRE_COLORS = {
+  Reality: '#2dd4bf',
+};
+
 // Podcast genres, matching the `primaryGenreName` strings the iTunes Search
 // API returns, so a looked-up show lands on a genre that already has a color.
 export const PODCAST_GENRE_COLORS = {
@@ -54,6 +61,7 @@ export const BOOK_GENRE_COLORS = {
 
 export const DEFAULT_GENRE_COLORS = {
   ...SCREEN_GENRE_COLORS,
+  ...TV_GENRE_COLORS,
   ...PODCAST_GENRE_COLORS,
   ...BOOK_GENRE_COLORS,
 };
@@ -62,6 +70,8 @@ export const DEFAULT_GENRE_COLORS = {
 // "Sci-Fi" and a movie shouldn't offer "True Crime". Settings still exposes
 // the full DEFAULT_GENRE_COLORS map for customization.
 export const SCREEN_GENRE_LIST = Object.keys(SCREEN_GENRE_COLORS);
+export const MOVIE_GENRE_LIST = SCREEN_GENRE_LIST;
+export const TV_GENRE_LIST = [...SCREEN_GENRE_LIST, ...Object.keys(TV_GENRE_COLORS)];
 export const PODCAST_GENRE_LIST = Object.keys(PODCAST_GENRE_COLORS).sort();
 export const BOOK_GENRE_LIST = [
   ...Object.keys(BOOK_GENRE_COLORS),

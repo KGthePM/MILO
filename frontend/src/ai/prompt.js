@@ -593,6 +593,7 @@ const GENRE_ALIASES = {
   Animation: ['animation', 'animated', 'anime', 'cartoon', 'cartoons'],
   Documentary: ['documentary', 'documentaries', 'docuseries', 'docs'],
   Fantasy: ['fantasy'],
+  Reality: ['reality tv', 'reality television', 'reality show', 'reality shows', 'reality series', 'talk show', 'talk shows', 'late night', 'late-night', 'dating show', 'dating shows', 'competition show', 'competition shows', 'trash tv', 'unscripted', 'housewives', 'bravo'],
   Mystery: ['mystery', 'mysteries', 'whodunit', 'whodunits', 'detective'],
   'True Crime': ['true crime'],
   'Young Adult': ['young adult'],

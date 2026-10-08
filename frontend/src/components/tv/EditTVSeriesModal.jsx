@@ -5,8 +5,7 @@ import { useTVSeries } from '../../utils/TVSeriesContext';
 import { IS_CLOUD } from '../../utils/mode';
 import TVSeriesSearch from './TVSeriesSearch';
 import { TMDB_ENABLED } from '../../api/tmdbLookup';
-
-const genres = ['Action', 'Comedy', 'Drama', 'Sci-Fi', 'Horror', 'Thriller', 'Romance', 'Animation', 'Documentary', 'Fantasy'];
+import { TV_GENRE_LIST as genres } from '../../utils/genreColors';
 
 export default function EditTVSeriesModal({ isOpen, onClose, series }) {
   const { updateSeries } = useTVSeries();

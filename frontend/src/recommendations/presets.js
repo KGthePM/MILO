@@ -8,7 +8,7 @@
 //
 // Each preset is scoped via `contentTypes` to the content types it makes sense
 // for; EnhancedRecommendations.jsx only renders matching chips. Movies/TV keep
-// viewing-mood presets; podcasts get listening-genre presets, since podcast recs
+// viewing-mood presets (Trash TV Night is TV-only, since Reality is too); podcasts get listening-genre presets, since podcast recs
 // are interest-driven ("true crime", "comedy") rather than occasion-driven
 // ("date night"). Books get reading-mood presets, including one (Screen to Page)
 // that leans on the unified taste profile to bridge from film/TV.
@@ -82,6 +82,14 @@ export const PRESETS = [
     emoji: '⚡',
     directive:
       'Right now I want something divisive and cult — love-it-or-hate-it, boundary-pushing work with a devoted following. It is fine to stretch beyond my usual comfort zone and recommend polarizing picks.',
+  },
+  {
+    id: 'trash_tv',
+    contentTypes: ['tv'],
+    label: 'Trash TV Night',
+    emoji: '💅',
+    directive:
+      'Right now I want a Trash TV night — gloriously bingeable reality and talk TV: big personalities, drama, dating and competition formats, reunions and chaos. Recommend unscripted reality or talk series, not scripted shows. Judge by how fun it is to watch, not prestige — on reality shows a middling rating from me can still mean I loved it.',
   },
 
   // ── Podcasts — listening is genre/interest-driven, not occasion-driven ───

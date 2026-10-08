@@ -2,8 +2,10 @@ import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { Search } from 'lucide-react';
 import MobileFilterDropdown from './MobileFilterDropdown';
+import { MOVIE_GENRE_LIST, TV_GENRE_LIST } from '../../utils/genreColors';
 
-export const genres = ['All', 'Action', 'Comedy', 'Drama', 'Sci-Fi', 'Horror', 'Thriller', 'Romance', 'Animation', 'Documentary', 'Fantasy'];
+export const genres = ['All', ...MOVIE_GENRE_LIST];
+export const tvGenres = ['All', ...TV_GENRE_LIST];
 
 export const dateRangeOptions = ['All time', 'Last 7 days', 'Last 30 days', 'Last 90 days'].map(opt => ({ value: opt, label: opt }));
 

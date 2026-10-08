@@ -14,16 +14,19 @@
 // Like the podcast lookup, every failure here is non-fatal by design: lookup is
 // a convenience on top of the Add/Edit form and must never block manual entry.
 
+import { MOVIE_GENRE_LIST, TV_GENRE_LIST } from '../utils/genreColors';
+
 const API_BASE = 'https://api.themoviedb.org/3';
 const IMAGE_BASE = 'https://image.tmdb.org/t/p';
 const TOKEN = import.meta.env.VITE_TMDB_TOKEN;
 
 export const TMDB_ENABLED = Boolean(TOKEN);
 
-// MILO's movie/TV genre list is fixed (the Add/Edit selects). TMDB names that
-// don't appear here are mapped onto the nearest MILO genre, or dropped.
-const MILO_GENRES = ['Action', 'Comedy', 'Drama', 'Sci-Fi', 'Horror', 'Thriller', 'Romance', 'Animation', 'Documentary', 'Fantasy'];
+// MILO's movie/TV genre lists are fixed (the Add/Edit selects). TMDB names
+// that don't appear in the type's list are mapped onto the nearest MILO genre,
+// or dropped. Reality is TV-only; TMDB's TV "Talk" genre lands there too.
 const GENRE_ALIASES = {
+  Talk: 'Reality',
   'Science Fiction': 'Sci-Fi',
   'Sci-Fi & Fantasy': 'Sci-Fi',
   'Action & Adventure': 'Action',
@@ -34,10 +37,10 @@ const GENRE_ALIASES = {
 
 // First TMDB genre that maps onto MILO's list, or '' so callers keep whatever
 // the user already chose rather than injecting an unknown value.
-function toMiloGenre(genres = []) {
+function toMiloGenre(genres = [], allowed = MOVIE_GENRE_LIST) {
   for (const { name } of genres) {
     const mapped = GENRE_ALIASES[name] || name;
-    if (MILO_GENRES.includes(mapped)) return mapped;
+    if (allowed.includes(mapped)) return mapped;
   }
   return '';
 }
@@ -125,7 +128,7 @@ export async function getTVDetails(result, { signal } = {}) {
       release_year: yearOf(d.first_air_date) || result.year,
       num_seasons: typeof d.number_of_seasons === 'number' ? d.number_of_seasons : null,
       total_episodes: typeof d.number_of_episodes === 'number' ? d.number_of_episodes : null,
-      genre: toMiloGenre(d.genres),
+      genre: toMiloGenre(d.genres, TV_GENRE_LIST),
       artwork_url: imageUrl(d.poster_path, 'w500') || result.artwork_url,
     };
   } catch {

@@ -7,6 +7,7 @@ import AddTVSeriesModal from '../components/tv/AddTVSeriesModal';
 import EditTVSeriesModal from '../components/tv/EditTVSeriesModal';
 import SearchFilter from '../components/shared/SearchFilter';
 import GenreFilter from '../components/shared/GenreFilter';
+import { tvGenres } from '../components/shared/SearchFilter';
 import TVRecommendations from '../components/tv/TVRecommendations';
 import TVTimeline from '../components/tv/TVTimeline';
 import Stats from '../components/shared/Stats';
@@ -119,7 +120,7 @@ function TVSeriesPageContent() {
               sortBy={sortBy}
               onSortChange={handleSortChange}
             />
-            <GenreFilter selectedGenre={selectedGenre} onGenreChange={handleGenreChange} />
+            <GenreFilter selectedGenre={selectedGenre} onGenreChange={handleGenreChange} genres={tvGenres} />
             {loading ? (
               <SkeletonGrid contentType="tv" />
             ) : error ? (

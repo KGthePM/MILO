@@ -6,8 +6,7 @@ import { useMovies } from '../../utils/MovieContext';
 import { IS_CLOUD } from '../../utils/mode';
 import MovieSearch from './MovieSearch';
 import { TMDB_ENABLED } from '../../api/tmdbLookup';
-
-const genres = ['Action', 'Comedy', 'Drama', 'Sci-Fi', 'Horror', 'Thriller', 'Romance', 'Animation', 'Documentary', 'Fantasy'];
+import { MOVIE_GENRE_LIST as genres } from '../../utils/genreColors';
 
 export default function AddMovieModal({ isOpen, onClose, defaultStatus = 'watched', prefill = null }) {
   const { addMovie, updateMovieStatus } = useMovies();
