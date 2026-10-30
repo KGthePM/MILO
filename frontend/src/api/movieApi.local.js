@@ -1,4 +1,17 @@
+import { computeInsights } from '../utils/genreInsights';
+
 const API_BASE = '/api';
+
+// The backend's /analytics only returns aggregates; the Stats insights need
+// the rows themselves. An insights failure must not take the stats down.
+export async function fetchWatchedRows(type) {
+  try {
+    const response = await fetch(`${API_BASE}/movies?type=${encodeURIComponent(type)}&status=watched`);
+    return response.ok ? await response.json() : [];
+  } catch {
+    return [];
+  }
+}
 
 export const api = {
   async getMovies(params = {}) {
@@ -42,9 +55,13 @@ export const api = {
 
   async getAnalytics(params = {}) {
     const queryString = new URLSearchParams(params).toString();
-    const response = await fetch(`${API_BASE}/analytics${queryString ? `?${queryString}` : ''}`);
+    const [response, rows] = await Promise.all([
+      fetch(`${API_BASE}/analytics${queryString ? `?${queryString}` : ''}`),
+      fetchWatchedRows(params.type || 'movie'),
+    ]);
     if (!response.ok) throw new Error('Failed to fetch analytics');
-    return response.json();
+    const analytics = await response.json();
+    return { ...analytics, insights: computeInsights(rows, params.type || 'movie') };
   },
 
   async getRecommendations(params = {}) {

@@ -9,6 +9,7 @@ import { loadAISettings } from '../utils/aiSettings';
 import { parseLetterboxdCSV, processLetterboxdRows } from './letterboxdClient';
 import { parseMiloDb, processDbRows, normalizeType } from './dbClient';
 import { getContentType, CONTENT_TYPE_KEYS } from '../utils/contentTypes';
+import { computeInsights } from '../utils/genreInsights';
 
 const TABLE = 'movies';
 
@@ -189,7 +190,7 @@ function computeAnalytics(rows, contentType) {
       }
     : { message: `Add more ${label} to get personalized recommendations!` };
 
-  return { total, avgRating, topGenres, timeline, recommendations };
+  return { total, avgRating, topGenres, timeline, recommendations, insights: computeInsights(rows, contentType) };
 }
 
 export const movieApi = {
@@ -398,7 +399,7 @@ export const tvApi = {
   updateSeries: (id, series) => movieApi.updateMovie(id, { ...series, type: 'tv' }),
   deleteSeries: (id) => movieApi.deleteMovie(id),
   getAnalytics: async () => {
-    const rows = await listRows({ type: 'tv' });
+    const rows = await listRows({ type: 'tv', status: 'watched' });
     return computeAnalytics(rows, 'tv');
   },
   getRecommendations: (params = {}) => movieApi.getRecommendations({ ...params, content: 'tv' }),
@@ -410,7 +411,7 @@ export const podcastApi = {
   updatePodcast: (id, podcast) => movieApi.updateMovie(id, { ...podcast, type: 'podcast' }),
   deletePodcast: (id) => movieApi.deleteMovie(id),
   getAnalytics: async () => {
-    const rows = await listRows({ type: 'podcast' });
+    const rows = await listRows({ type: 'podcast', status: 'watched' });
     return computeAnalytics(rows, 'podcast');
   },
   getRecommendations: (params = {}) => movieApi.getRecommendations({ ...params, content: 'podcast' }),
@@ -422,7 +423,7 @@ export const bookApi = {
   updateBook: (id, book) => movieApi.updateMovie(id, { ...book, type: 'book' }),
   deleteBook: (id) => movieApi.deleteMovie(id),
   getAnalytics: async () => {
-    const rows = await listRows({ type: 'book' });
+    const rows = await listRows({ type: 'book', status: 'watched' });
     return computeAnalytics(rows, 'book');
   },
   getRecommendations: (params = {}) => movieApi.getRecommendations({ ...params, content: 'book' }),

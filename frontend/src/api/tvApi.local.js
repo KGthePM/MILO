@@ -1,3 +1,6 @@
+import { fetchWatchedRows } from './movieApi.local';
+import { computeInsights } from '../utils/genreInsights';
+
 const API_BASE = '/api/tv';
 
 export const tvApi = {
@@ -44,9 +47,10 @@ export const tvApi = {
   },
 
   getAnalytics: async () => {
-    const response = await fetch(`${API_BASE}/analytics`);
+    const [response, rows] = await Promise.all([fetch(`${API_BASE}/analytics`), fetchWatchedRows('tv')]);
     if (!response.ok) throw new Error('Failed to fetch TV analytics');
-    return response.json();
+    const analytics = await response.json();
+    return { ...analytics, insights: computeInsights(rows, 'tv') };
   },
 
   getRecommendations: async (params = {}) => {

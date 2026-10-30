@@ -7,6 +7,8 @@ const DEFAULT_ONBOARDING = { introSeen: false, hints: {} };
 const DEFAULTS = {
   genreColors: {},
   onboarding: DEFAULT_ONBOARDING,
+  // Which insight each content type's Stats tile headlines, keyed by type.
+  statsHeadline: {},
 };
 
 const listeners = new Set();
@@ -22,6 +24,7 @@ export function loadUserPrefs() {
       ...DEFAULTS,
       ...parsed,
       genreColors: { ...(parsed.genreColors || {}) },
+      statsHeadline: { ...(parsed.statsHeadline || {}) },
       onboarding: {
         ...DEFAULT_ONBOARDING,
         ...(parsed.onboarding || {}),
@@ -80,4 +83,20 @@ export function markHintSeen(id) {
 
 export function resetHints() {
   updateOnboarding((o) => ({ ...o, hints: {} }));
+}
+
+// --- Stats headline --------------------------------------------------------
+// Re-reads before writing, same as the onboarding helpers. A null id clears
+// the pin and the tile falls back to its default.
+
+export function getStatsHeadline(contentType) {
+  return loadUserPrefs().statsHeadline[contentType] || null;
+}
+
+export function setStatsHeadline(contentType, id) {
+  const prefs = loadUserPrefs();
+  const statsHeadline = { ...prefs.statsHeadline };
+  if (id) statsHeadline[contentType] = id;
+  else delete statsHeadline[contentType];
+  saveUserPrefs({ ...prefs, statsHeadline });
 }

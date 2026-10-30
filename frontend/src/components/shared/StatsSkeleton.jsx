@@ -1,7 +1,7 @@
 import { accentFor } from '../../utils/contentTypes';
 
-// Loading placeholder for the 3-card Stats row (Total / Average Rating / Top
-// Genre). Same shape as the real cards so nothing jumps when analytics
+// Loading placeholder for the 3-card Stats row (Total / Average Rating / taste
+// insight). Same shape as the real cards so nothing jumps when analytics
 // lands, and the same motion budget as SkeletonGrid/FriendRowsSkeleton: one
 // sweep per card, disabled under prefers-reduced-motion via .skeleton-sweep.
 
